@@ -56,7 +56,12 @@ class CustomDataset(Dataset):
         return len(self.input_ids)
     
     def __getitem__(self, idx):
-        return self.input_ids[idx], self.token_type_ids[idx], self.labels[idx]
+        ask_question_class = 0 
+        if self.labels[idx][-2] == 30:
+            ask_question_class = 2 
+        elif self.input_ids[idx][-2] != 30:
+            ask_question_class = 1 
+        return self.input_ids[idx], self.token_type_ids[idx], self.labels[idx], ask_question_class
     
     
 class PadCollate():
@@ -64,14 +69,14 @@ class PadCollate():
         self.eos_id = eos_id
         
     def pad_collate(self, batch):
-        input_ids, token_type_ids, labels =[], [], []
+        input_ids, token_type_ids, labels, ask_questions =[], [], [], []
         for idx, seqs in enumerate(batch):
             input_ids.append(torch.LongTensor(seqs[0]))
             token_type_ids.append(torch.LongTensor(seqs[1]))
             labels.append(torch.LongTensor(seqs[2]))
+            ask_questions.append(torch.LongTensor([seqs[3]]))
             
         input_ids = torch.nn.utils.rnn.pad_sequence(input_ids, batch_first=True, padding_value=self.eos_id)
         token_type_ids = torch.nn.utils.rnn.pad_sequence(token_type_ids, batch_first=True, padding_value=self.eos_id)
         labels = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=-100)
-    
-        return input_ids, token_type_ids, labels
+        return input_ids, token_type_ids, labels, torch.cat(ask_questions).long()

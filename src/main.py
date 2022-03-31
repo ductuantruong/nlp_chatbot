@@ -128,10 +128,9 @@ class Manager():
             train_losses = []
             train_ppls = []
             for i, batch in enumerate(tqdm(self.train_loader)):
-                input_ids, token_type_ids, labels = batch
-                input_ids, token_type_ids, labels = \
-                    input_ids.to(self.args.device), token_type_ids.to(self.args.device), labels.to(self.args.device)
-                
+                input_ids, token_type_ids, labels, ask_questions = batch
+                input_ids, token_type_ids, labels, ask_questions = \
+                    input_ids.to(self.args.device), token_type_ids.to(self.args.device), labels.to(self.args.device), ask_questions.to(self.args.device)
                 outputs = self.model(
                     input_ids=input_ids,
                     token_type_ids = token_type_ids,
@@ -139,12 +138,23 @@ class Manager():
                 )
                 # loss = outputs[0]
                 logits = outputs[1]
+                a_max = torch.argmax(logits, dim=-1)
+                last_token = a_max[:, -1]
+                predicted_ask_question = []
+                for utt in range(last_token.size(0)):
+                    token_id = last_token[utt].item()
+                    if token_id != 30:
+                        predicted_ask_question.append(torch.LongTensor([0]))
+                    else:
+                        predicted_ask_question.append(ask_questions[utt].view(1))
+                predicted_ask_question = torch.cat(predicted_ask_question)
+                predicted_ask_question = F.one_hot(predicted_ask_question, 3)
                 shift_logits = logits[..., :-1, :].contiguous()
                 shift_labels = labels[..., 1:].contiguous()
-
                 criteria = nn.CrossEntropyLoss()
-                loss = criteria(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
-
+                lm_loss = criteria(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+                ask_question_loss = criteria(predicted_ask_question.float(), ask_questions)
+                loss = lm_loss * (1 - 0.25) + ask_question_loss * 0.25
                 self.optim.zero_grad()
                 loss.backward()
                 self.optim.step()
@@ -206,9 +216,9 @@ class Manager():
         valid_ppls = []
         with torch.no_grad():
             for i, batch in enumerate(tqdm(self.valid_loader)):
-                input_ids, token_type_ids, labels = batch
-                input_ids, token_type_ids, labels = \
-                    input_ids.to(self.args.device), token_type_ids.to(self.args.device), labels.to(self.args.device)
+                input_ids, token_type_ids, labels, ask_questions = batch
+                input_ids, token_type_ids, labels, ask_questions = \
+                    input_ids.to(self.args.device), token_type_ids.to(self.args.device), labels.to(self.args.device), ask_questions.to(self.args.device)
                 
                 outputs = self.model(
                     input_ids=input_ids,
