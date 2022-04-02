@@ -8,7 +8,7 @@ import json
 #     dataset = json.loads(f.read())
 import nltk
 nltk.download('punkt')
-
+nltk.download('averaged_perceptron_tagger')
 def check_question(tokens):
   tagged = nltk.pos_tag(tokens)
   # if tagged[-1][0] == '?':
@@ -47,3 +47,5 @@ def question_calculate(lst):
       print(senc)
       result += 1
   return result
+
+

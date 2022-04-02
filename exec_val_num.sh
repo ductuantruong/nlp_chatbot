@@ -1,0 +1,12 @@
+python src/val_num_question.py \
+    --seed=0 \
+    --data_dir="data" \
+    --model_type="gpt2" \
+    --bos_token="<bos>" \
+    --sp1_token="<sp1>" \
+    --sp2_token="<sp2>" \
+    --gpu="0" \
+    --max_len=1024 \
+    --top_p=0.8 \
+    --ckpt_dir="saved_models" \
+    --ckpt_name="best_ckpt_epoch=1_valid_loss=2.8172" \
