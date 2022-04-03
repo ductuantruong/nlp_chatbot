@@ -153,7 +153,7 @@ class Manager():
                 shift_labels = labels[..., 1:].contiguous()
                 criteria = nn.CrossEntropyLoss()
                 lm_loss = criteria(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
-                ask_question_loss = criteria(predicted_ask_question.float(), ask_questions)
+                ask_question_loss = criteria(predicted_ask_question.float().to(self.args.device), ask_questions)
                 loss = lm_loss * (1 - 0.25) + ask_question_loss * 0.25
                 self.optim.zero_grad()
                 loss.backward()
@@ -161,7 +161,7 @@ class Manager():
                 self.sched.step()
                 
                 train_losses.append(loss.detach())
-                ppl = torch.exp(loss.detach())
+                ppl = torch.exp(lm_loss.detach())
                 train_ppls.append(ppl)
             
             train_losses = [loss.item() for loss in train_losses]
