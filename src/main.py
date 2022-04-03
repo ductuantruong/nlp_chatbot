@@ -29,8 +29,9 @@ class Manager():
         # Tokenizer & Vocab
         print("Loading the tokenizer...")
         self.tokenizer = GPT2Tokenizer.from_pretrained(self.args.model_type)
-        print("Loading the BERTopic...")
-        self.topic_model = BERTopic.load(self.args.topic_model_ckpt_path)
+        if self.args.w_topic_loss:
+            print("Loading the BERTopic...")
+            self.topic_model = BERTopic.load(self.args.topic_model_ckpt_path)
         
         special_tokens = {
             'bos_token': self.args.bos_token,
@@ -132,6 +133,7 @@ class Manager():
             print(f"#"*50 + f"Epoch: {epoch}" + "#"*50)
             train_losses = []
             train_ppls = []
+            tqdm._instances.clear()
             for i, batch in enumerate(tqdm(self.train_loader)):
                 input_ids, token_type_ids, labels, ask_questions = batch
                 input_ids, token_type_ids, labels, ask_questions = \
@@ -146,9 +148,15 @@ class Manager():
                 # criteria = nn.CrossEntropyLoss()
                 # lm_loss = criteria(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
                 lm_loss, logits = outputs[0], outputs[1]
-                ask_question_loss = self.compute_question_loss(logits=logits, ask_question_labels=ask_questions)
-                topic_loss = self.compute_topic_loss(logits=logits, labels=labels)
-                loss = lm_loss * (1 - 0.25 - 0.25) + ask_question_loss * 0.25 + topic_loss * 0.5
+                if self.args.w_question_loss:
+                    ask_question_loss = self.compute_question_loss(logits=logits, ask_question_labels=ask_questions)
+                else:
+                    ask_question_loss = 0.
+                if self.args.w_topic_loss:
+                    topic_loss = self.compute_topic_loss(logits=logits, labels=labels)
+                else:
+                    topic_loss = 0.
+                loss = lm_loss * (1 - self.args.w_question_loss - self.args.w_topic_loss) + ask_question_loss * self.args.w_question_loss + topic_loss * self.args.w_topic_loss
                 self.optim.zero_grad()
                 loss.backward()
                 self.optim.step()
@@ -327,12 +335,12 @@ class Manager():
     def compute_topic_loss(self, logits, labels):
         token_seq = torch.argmax(logits, dim=-1)
         pred_res = self.tokenizer.batch_decode(token_seq, skip_special_tokens=True)
-        print(labels)
         gt_res = self.tokenizer.batch_decode(labels, skip_special_tokens=True)
         _, pred_res_topic = self.topic_model.transform(pred_res) 
         _, gt_res_topic = self.topic_model.transform(gt_res)
-        criteria = nn.KLDivLoss(reduction="batchmean")
-        topic_loss = criteria(pred_res_topic, gt_res_topic, log_target=True)
+        pred_res_topic, gt_res_topic = torch.tensor(pred_res_topic, dtype=torch.float), torch.tensor(gt_res_topic, dtype=torch.float)
+        criteria = nn.KLDivLoss(reduction="batchmean", log_target=True)
+        topic_loss = criteria(pred_res_topic, gt_res_topic)
         return topic_loss
         
     def fix_seed(self, seed):
@@ -363,6 +371,8 @@ if __name__=='__main__':
     parser.add_argument('--max_len', type=int, default=1024, help="The maximum length of input sequence.")
     parser.add_argument('--max_turns', type=int, default=5, help="The maximum number of dialogue histories to include.")
     parser.add_argument('--top_p', type=float, default=0.9, help="The top-p value for nucleus sampling decoding.")
+    parser.add_argument('--w_question_loss', type=float, default=0.25, help="The weight value of question loss.")
+    parser.add_argument('--w_topic_loss', type=float, default=0.25, help="The weight value of topic loss.")
     parser.add_argument('--ckpt_dir', type=str, default="saved_models", help="The directory name for saved checkpoints.")
     parser.add_argument('--ckpt_name', type=str, required=False, help="The name of the trained checkpoint. (without extension)")
     parser.add_argument('--topic_model_ckpt_path', type=str, default='saved_models/topic_modelling/model.bertopic', help="The path of the trained checkpoint of the topic model.")
