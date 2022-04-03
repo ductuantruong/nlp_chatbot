@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 from torch.nn import functional as F
 from torch.utils.tensorboard import SummaryWriter
 from itertools import chain
+from bertopic import BERTopic
 
 import torch
 import torch.nn as nn
@@ -28,6 +29,8 @@ class Manager():
         # Tokenizer & Vocab
         print("Loading the tokenizer...")
         self.tokenizer = GPT2Tokenizer.from_pretrained(self.args.model_type)
+        self.topic_model = BERTopic.load(self.args.topic_model_ckpt_path).to(self.args.device)
+        
         special_tokens = {
             'bos_token': self.args.bos_token,
             'additional_special_tokens': [self.args.sp1_token, self.args.sp2_token]
@@ -136,24 +139,16 @@ class Manager():
                     token_type_ids = token_type_ids,
                     labels = labels
                 )
-                # loss = outputs[0]
-                logits = outputs[1]
-                a_max = torch.argmax(logits, dim=-1)
-                last_token = a_max[:, -1]
-                predicted_ask_question = []
-                for utt in range(last_token.size(0)):
-                    token_id = last_token[utt].item()
-                    if token_id != 30:
-                        predicted_ask_question.append(torch.LongTensor([0]))
-                    else:
-                        predicted_ask_question.append(ask_questions[utt].view(1))
-                predicted_ask_question = torch.cat(predicted_ask_question)
-                predicted_ask_question = F.one_hot(predicted_ask_question, 3)
-                shift_logits = logits[..., :-1, :].contiguous()
-                shift_labels = labels[..., 1:].contiguous()
-                criteria = nn.CrossEntropyLoss()
-                lm_loss = criteria(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
-                ask_question_loss = criteria(predicted_ask_question.float().to(self.args.device), ask_questions)
+                # shift_logits = logits[..., :-1, :].contiguous()
+                # shift_labels = labels[..., 1:].contiguous()
+                # criteria = nn.CrossEntropyLoss()
+                # lm_loss = criteria(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+                lm_loss, logits = outputs[0], outputs[1]
+                print('lm_loss', lm_loss)
+                print('logits', logits[1,:,:])
+                import time
+                time.sleep(1999)
+                ask_question_loss = self.compute_question_loss(logits=logits, ask_question_labels=ask_questions)
                 loss = lm_loss * (1 - 0.25) + ask_question_loss * 0.25
                 self.optim.zero_grad()
                 loss.backward()
@@ -279,12 +274,6 @@ class Manager():
                 token_type_ids = torch.LongTensor(token_type_ids).unsqueeze(0).to(self.args.device)
                 
                 output_ids = self.nucleus_sampling(input_ids, token_type_ids, input_len)                
-                # output_ids = self.model.generate(
-                #     input_ids=input_ids, token_type_ids=token_type_ids, pad_token_id=self.args.eos_id,
-                #     do_sample=True, top_p=self.args.top_p, max_length=self.args.max_len,
-                #     output_hidden_states=True, output_scores=True, return_dict_in_generate=True,
-                # ).sequences
-                # output_ids = output_ids[0].tolist()[input_len:]
                 res = self.tokenizer.decode(output_ids, skip_special_tokens=True)
                 
                 print(f"Bot: {res}")
@@ -320,6 +309,31 @@ class Manager():
             
         return output_ids
     
+    def compute_question_loss(self, logits, ask_question_labels):
+        token_seq = torch.argmax(logits, dim=-1)
+        last_token = token_seq[:, -1]
+        predicted_ask_question = []
+        for utt in range(last_token.size(0)):
+            token_id = last_token[utt].item()
+            if token_id != 30:
+                predicted_ask_question.append(torch.LongTensor([0]))
+            else:
+                predicted_ask_question.append(ask_question_labels[utt].view(1))
+        predicted_ask_question = torch.cat(predicted_ask_question)
+        predicted_ask_question = F.one_hot(predicted_ask_question, 3)
+        criteria = nn.CrossEntropyLoss()
+        ask_question_loss = criteria(predicted_ask_question.float().to(self.args.device), ask_question_labels)
+        return ask_question_loss
+
+    def compute_topic_loss(self, logits, labels):
+        pred_res = self.tokenizer.decode(logits, skip_special_tokens=True)
+        gt_res = self.tokenizer.decode(labels, skip_special_tokens=True)
+        pred_res_topic = self.topic_model(pred_res) 
+        gt_res_topic = self.topic_model(gt_res)
+        criteria = nn.KLDivLoss(reduction="batchmean")
+        topic_loss = criteria(pred_res_topic, gt_res_topic, log_target=True)
+        return topic_loss
+        
     def fix_seed(self, seed):
         np.random.seed(seed)
         torch.manual_seed(seed)
@@ -349,6 +363,7 @@ if __name__=='__main__':
     parser.add_argument('--top_p', type=float, default=0.9, help="The top-p value for nucleus sampling decoding.")
     parser.add_argument('--ckpt_dir', type=str, default="saved_models", help="The directory name for saved checkpoints.")
     parser.add_argument('--ckpt_name', type=str, required=False, help="The name of the trained checkpoint. (without extension)")
+    parser.add_argument('--topic_model_ckpt_path', type=str, default='saved_models/topic_modelling/model.bertopic', help="The path of the trained checkpoint of the topic model.")
     parser.add_argument('--end_command', type=str, default="Abort!", help="The command to stop the conversation when inferencing.")
               
     args = parser.parse_args()
