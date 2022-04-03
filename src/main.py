@@ -34,17 +34,18 @@ class Manager():
         
         special_tokens = {
             'bos_token': self.args.bos_token,
+            'pad_token': self.args.pad_token,
             'additional_special_tokens': [self.args.sp1_token, self.args.sp2_token]
         }
         self.args.eos_token = self.tokenizer.eos_token
         num_new_tokens = self.tokenizer.add_special_tokens(special_tokens)
         vocab = self.tokenizer.get_vocab()
         self.args.vocab_size = len(vocab)
+        self.args.pad_id = vocab[self.args.pad_token]
         self.args.bos_id = vocab[self.args.bos_token]
         self.args.eos_id = vocab[self.args.eos_token]
         self.args.sp1_id = vocab[self.args.sp1_token]
         self.args.sp2_id = vocab[self.args.sp2_token]
-        
         # Load model    
         print("Loading the model...")
         self.fix_seed(self.args.seed)
@@ -64,7 +65,7 @@ class Manager():
             print("Loading train & valid data...")
             train_set = CustomDataset(self.args.train_prefix, self.args)
             valid_set = CustomDataset(self.args.valid_prefix, self.args)
-            ppd = PadCollate(eos_id=self.args.eos_id)
+            ppd = PadCollate(eos_id=self.args.eos_id, pad_id=self.args.pad_id)
             
             self.train_loader = DataLoader(train_set, 
                                            collate_fn=ppd.pad_collate, 
@@ -350,6 +351,7 @@ if __name__=='__main__':
     parser.add_argument('--valid_prefix', type=str, default="valid", help="The prefix of the validation data files' name.")
     parser.add_argument('--model_type', type=str, default="gpt2", help="The model type of GPT-2.")
     parser.add_argument('--bos_token', type=str, default="<bos>", help="The BOS token.")
+    parser.add_argument('--pad_token', type=str, default="<pad>", help="The PAD token.")
     parser.add_argument('--sp1_token', type=str, default="<sp1>", help="The speaker1 token.")
     parser.add_argument('--sp2_token', type=str, default="<sp2>", help="The speaker2 token.")
     parser.add_argument('--gpu', type=str, default="0", help="The index of GPU to use.")
