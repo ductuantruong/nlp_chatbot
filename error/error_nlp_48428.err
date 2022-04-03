@@ -1,0 +1,21 @@
+[nltk_data] Downloading package punkt to
+[nltk_data]     /home/MSAI/s210038/nltk_data...
+[nltk_data]   Package punkt is already up-to-date!
+[nltk_data] Downloading package averaged_perceptron_tagger to
+[nltk_data]     /home/MSAI/s210038/nltk_data...
+[nltk_data]   Package averaged_perceptron_tagger is already up-to-
+[nltk_data]       date!
+  0%|          | 0/2832 [00:00<?, ?it/s] 56%|█████▌    | 1580/2832 [00:00<00:00, 15799.04it/s]100%|██████████| 2832/2832 [00:00<00:00, 15292.44it/s]
+  0%|          | 0/18394 [00:00<?, ?it/s]  0%|          | 0/18394 [00:00<?, ?it/s]
+Traceback (most recent call last):
+  File "/home/MSAI/s210038/NLP/nlp_chatbot/src/val_num_question.py", line 175, in <module>
+    manager.validation()
+  File "/home/MSAI/s210038/NLP/nlp_chatbot/src/val_num_question.py", line 95, in validation
+    label = self.tokenizer.decode(labels[0].tolist(), skip_special_tokens=True)
+  File "/home/MSAI/s210038/.conda/envs/kietcdx/lib/python3.9/site-packages/transformers/tokenization_utils_base.py", line 3312, in decode
+    return self._decode(
+  File "/home/MSAI/s210038/.conda/envs/kietcdx/lib/python3.9/site-packages/transformers/tokenization_utils.py", line 947, in _decode
+    sub_texts.append(self.convert_tokens_to_string(current_sub_text))
+  File "/home/MSAI/s210038/.conda/envs/kietcdx/lib/python3.9/site-packages/transformers/models/gpt2/tokenization_gpt2.py", line 265, in convert_tokens_to_string
+    text = "".join(tokens)
+TypeError: sequence item 0: expected str instance, NoneType found

@@ -72,7 +72,7 @@ class Manager():
                 
                 print('The evaluation will start')
             else:
-                print(f"Cannot fine the specified checkpoint {ckpt_path}.")
+                print(f"Cannot fine the specified checkpoint {ckpt_path}")
                 exit()
               
         print("Setting finished.")
@@ -88,10 +88,16 @@ class Manager():
             for i, batch in enumerate(tqdm(self.valid_loader)):
                 input_ids, token_type_ids, labels, ask_questions = batch
                 input_ids, token_type_ids, labels, ask_questions =input_ids.to(self.args.device),token_type_ids.to(self.args.device),labels.to(self.args.device),ask_questions.to(self.args.device)
-                
-                output_ids = self.nucleus_sampling(input_ids, token_type_ids, input_len)                
+                input_len = len(input_ids)
+
+                output_ids = self.nucleus_sampling(input_ids, token_type_ids, input_len)               
                 res = self.tokenizer.decode(output_ids, skip_special_tokens=True)
-                label = self.tokenizer.decode(labels, skip_special_tokens=True)
+                shift_labels = labels[..., 1:].contiguous().view(-1)
+                shift_label = []
+                for i in shift_labels:
+                    if i > 0:
+                        shift_label.append(i)
+                label = self.tokenizer.decode(shift_label, skip_special_tokens=True)
                 if check_question(nltk.word_tokenize(res)):
                     num_ques_model += 1
                     

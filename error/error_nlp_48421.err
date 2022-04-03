@@ -1,0 +1,8 @@
+[nltk_data] Downloading package punkt to
+[nltk_data]     /home/MSAI/s210038/nltk_data...
+[nltk_data]   Package punkt is already up-to-date!
+[nltk_data] Downloading package averaged_perceptron_tagger to
+[nltk_data]     /home/MSAI/s210038/nltk_data...
+[nltk_data]   Package averaged_perceptron_tagger is already up-to-
+[nltk_data]       date!
+  0%|          | 0/2832 [00:00<?, ?it/s] 56%|█████▌    | 1581/2832 [00:00<00:00, 15804.14it/s]100%|██████████| 2832/2832 [00:00<00:00, 15318.42it/s]
