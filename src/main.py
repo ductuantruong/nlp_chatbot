@@ -29,6 +29,7 @@ class Manager():
         # Tokenizer & Vocab
         print("Loading the tokenizer...")
         self.tokenizer = GPT2Tokenizer.from_pretrained(self.args.model_type)
+        print("Loading the BERTopic...")
         self.topic_model = BERTopic.load(self.args.topic_model_ckpt_path).to(self.args.device)
         
         special_tokens = {
@@ -144,12 +145,15 @@ class Manager():
                 # criteria = nn.CrossEntropyLoss()
                 # lm_loss = criteria(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
                 lm_loss, logits = outputs[0], outputs[1]
+                ask_question_loss = self.compute_question_loss(logits=logits, ask_question_labels=ask_questions)
                 print('lm_loss', lm_loss)
                 print('logits', logits[1,:,:])
+                print('label', labels[1])
+                print('ask_question_loss', ask_question_loss)
                 import time
                 time.sleep(1999)
-                ask_question_loss = self.compute_question_loss(logits=logits, ask_question_labels=ask_questions)
-                loss = lm_loss * (1 - 0.25) + ask_question_loss * 0.25
+                topic_loss = self.compute_topic_loss(logits=logits, labels=labels)
+                loss = lm_loss * (1 - 0.25 - 0.25) + ask_question_loss * 0.25 + topic_loss * 0.5
                 self.optim.zero_grad()
                 loss.backward()
                 self.optim.step()
