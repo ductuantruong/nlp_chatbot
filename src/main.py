@@ -30,7 +30,7 @@ class Manager():
         print("Loading the tokenizer...")
         self.tokenizer = GPT2Tokenizer.from_pretrained(self.args.model_type)
         print("Loading the BERTopic...")
-        self.topic_model = BERTopic.load(self.args.topic_model_ckpt_path).to(self.args.device)
+        self.topic_model = BERTopic.load(self.args.topic_model_ckpt_path)
         
         special_tokens = {
             'bos_token': self.args.bos_token,
@@ -146,12 +146,6 @@ class Manager():
                 # lm_loss = criteria(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
                 lm_loss, logits = outputs[0], outputs[1]
                 ask_question_loss = self.compute_question_loss(logits=logits, ask_question_labels=ask_questions)
-                print('lm_loss', lm_loss)
-                print('logits', logits[1,:,:])
-                print('label', labels[1])
-                print('ask_question_loss', ask_question_loss)
-                import time
-                time.sleep(1999)
                 topic_loss = self.compute_topic_loss(logits=logits, labels=labels)
                 loss = lm_loss * (1 - 0.25 - 0.25) + ask_question_loss * 0.25 + topic_loss * 0.5
                 self.optim.zero_grad()
@@ -330,10 +324,12 @@ class Manager():
         return ask_question_loss
 
     def compute_topic_loss(self, logits, labels):
-        pred_res = self.tokenizer.decode(logits, skip_special_tokens=True)
-        gt_res = self.tokenizer.decode(labels, skip_special_tokens=True)
-        pred_res_topic = self.topic_model(pred_res) 
-        gt_res_topic = self.topic_model(gt_res)
+        token_seq = torch.argmax(logits, dim=-1)
+        pred_res = self.tokenizer.batch_decode(token_seq, skip_special_tokens=True)
+        print(labels)
+        gt_res = self.tokenizer.batch_decode(labels, skip_special_tokens=True)
+        _, pred_res_topic = self.topic_model.transform(pred_res) 
+        _, gt_res_topic = self.topic_model.transform(gt_res)
         criteria = nn.KLDivLoss(reduction="batchmean")
         topic_loss = criteria(pred_res_topic, gt_res_topic, log_target=True)
         return topic_loss
