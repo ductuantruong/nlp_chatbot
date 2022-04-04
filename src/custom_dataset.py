@@ -41,9 +41,9 @@ class CustomDataset(Dataset):
                             token_type_ids = [start_sp_id] + list(chain.from_iterable(token_type_ids)) + [args.sp2_id]
                             assert len(input_ids) == len(token_type_ids)
                             
-                            labels = [[args.pad_id] * len(ctx) if c < len(contexts)-1 else [args.pad_id] + ctx[1:] for c, ctx in enumerate(contexts)]
+                            labels = [[-100] * len(ctx) if c < len(contexts)-1 else [-100] + ctx[1:] for c, ctx in enumerate(contexts)]
                             assert labels[-1][1:] == contexts[-1][1:]
-                            labels = [args.pad_id] + list(chain.from_iterable(labels)) + [args.eos_id]
+                            labels = [-100] + list(chain.from_iterable(labels)) + [args.eos_id]
                             assert len(input_ids) == len(labels)
                             
                             self.input_ids.append(input_ids)
@@ -65,9 +65,8 @@ class CustomDataset(Dataset):
     
     
 class PadCollate():
-    def __init__(self, eos_id, pad_id):
+    def __init__(self, eos_id):
         self.eos_id = eos_id
-        self.pad_id = pad_id
         
     def pad_collate(self, batch):
         input_ids, token_type_ids, labels, ask_questions =[], [], [], []
@@ -79,5 +78,5 @@ class PadCollate():
             
         input_ids = torch.nn.utils.rnn.pad_sequence(input_ids, batch_first=True, padding_value=self.eos_id)
         token_type_ids = torch.nn.utils.rnn.pad_sequence(token_type_ids, batch_first=True, padding_value=self.eos_id)
-        labels = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=self.pad_id)
+        labels = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=-100)
         return input_ids, token_type_ids, labels, torch.cat(ask_questions).long()
