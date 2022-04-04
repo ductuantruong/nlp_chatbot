@@ -230,7 +230,11 @@ class Manager():
                     labels = labels
                 )
                 
-                loss, logits = outputs[0], outputs[1]
+                _, logits = outputs[0], outputs[1]
+                shift_logits = logits[..., :-1, :].contiguous()
+                shift_labels = labels[..., 1:].contiguous()
+                criteria = nn.CrossEntropyLoss(ignore_index=self.args.pad_id)
+                loss = criteria(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
                 
                 valid_losses.append(loss.detach())
                 ppl = torch.exp(loss.detach())
