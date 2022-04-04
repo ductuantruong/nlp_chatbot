@@ -64,8 +64,8 @@ class Manager():
             
             # Load train & valid dataset
             print("Loading train & valid data...")
-            train_set = CustomDataset(self.args.train_prefix, self.args)
-            valid_set = CustomDataset(self.args.valid_prefix, self.args)
+            train_set = CustomDataset(self.args.train_prefix, self.args, self.tokenizer)
+            valid_set = CustomDataset(self.args.valid_prefix, self.args, self.tokenizer)
             ppd = PadCollate(eos_id=self.args.eos_id, pad_id=self.args.pad_id)
             
             self.train_loader = DataLoader(train_set, 
@@ -73,12 +73,14 @@ class Manager():
                                            shuffle=True, 
                                            batch_size=self.args.batch_size, 
                                            num_workers=self.args.num_workers, 
-                                           pin_memory=True)
+                                           pin_memory=True,
+                                           shuffle=False)
             self.valid_loader = DataLoader(valid_set, 
                                            collate_fn=ppd.pad_collate,
                                            batch_size=self.args.batch_size, 
                                            num_workers=self.args.num_workers, 
-                                           pin_memory=True)
+                                           pin_memory=True,
+                                           shuffle=False)
             
             if not os.path.exists(self.args.ckpt_dir):
                 os.makedirs(self.args.ckpt_dir)
@@ -351,10 +353,21 @@ class Manager():
                     
 
 if __name__=='__main__':
+    def str2bool(v):
+        if isinstance(v, bool):
+            return v
+        if v.lower() in ('yes', 'true', 't', 'y', '1'):
+            return True
+        elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+            return False
+        else:
+            raise argparse.ArgumentTypeError('Boolean value expected.')
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=0, help="The random seed.")
     parser.add_argument('--mode', type=str, required=True, help="The running mode: train or inference?")
     parser.add_argument('--data_dir', type=str, default="data", help="The name of the parent directory where data files are stored.")
+    parser.add_argument('--prepared_topic', type=str2bool, default=False, help="Prepare the topic distribution or not?")
+    parser.add_argument('--topic_dist_dir', type=str, default="topic_dist", help="The name of the parent directory where topic distribution tensor files are stored.")
     parser.add_argument('--train_prefix', type=str, default="train", help="The prefix of the train data files' name.")
     parser.add_argument('--valid_prefix', type=str, default="valid", help="The prefix of the validation data files' name.")
     parser.add_argument('--model_type', type=str, default="gpt2", help="The model type of GPT-2.")
