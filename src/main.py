@@ -143,11 +143,11 @@ class Manager():
                     token_type_ids = token_type_ids,
                     labels = labels
                 )
-                # shift_logits = logits[..., :-1, :].contiguous()
-                # shift_labels = labels[..., 1:].contiguous()
-                # criteria = nn.CrossEntropyLoss()
-                # lm_loss = criteria(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
-                lm_loss, logits = outputs[0], outputs[1]
+                _, logits = outputs[0], outputs[1]
+                shift_logits = logits[..., :-1, :].contiguous()
+                shift_labels = labels[..., 1:].contiguous()
+                criteria = nn.CrossEntropyLoss(ignore_index=self.args.pad_id)
+                lm_loss = criteria(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
                 if self.args.w_question_loss:
                     ask_question_loss = self.compute_question_loss(logits=logits, ask_question_labels=ask_questions)
                 else:
@@ -328,7 +328,7 @@ class Manager():
                 predicted_ask_question.append(ask_question_labels[utt].view(1))
         predicted_ask_question = torch.cat(predicted_ask_question)
         predicted_ask_question = F.one_hot(predicted_ask_question, 3)
-        criteria = nn.CrossEntropyLoss()
+        criteria = nn.CrossEntropyLoss(ignore_index=self.args.pad_id)
         ask_question_loss = criteria(predicted_ask_question.float().to(self.args.device), ask_question_labels)
         return ask_question_loss
 
