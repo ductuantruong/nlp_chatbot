@@ -102,6 +102,7 @@ class Manager():
                     num_ques_model += 1
                     
                 if check_question(nltk.word_tokenize(label)):
+                    print(label)
                     num_ques_valset += 1
                                
         print('Number of questiones in validate set: ' + str(num_ques_valset))

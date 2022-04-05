@@ -21,4 +21,4 @@ python src/val_num_question.py \
     --max_len=1024 \
     --top_p=0.8 \
     --ckpt_dir="saved_models" \
-    --ckpt_name="best_ckpt_epoch=8_valid_loss=2.5714" \
+    --ckpt_name="best_ckpt_epoch=8_valid_loss=1.6809" \

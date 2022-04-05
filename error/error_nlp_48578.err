@@ -1,0 +1,18 @@
+[nltk_data] Downloading package punkt to
+[nltk_data]     /home/MSAI/s210038/nltk_data...
+[nltk_data]   Package punkt is already up-to-date!
+[nltk_data] Downloading package averaged_perceptron_tagger to
+[nltk_data]     /home/MSAI/s210038/nltk_data...
+[nltk_data]   Package averaged_perceptron_tagger is already up-to-
+[nltk_data]       date!
+usage: val_num_question.py [-h] [--seed SEED] [--data_dir DATA_DIR]
+                           [--train_prefix TRAIN_PREFIX]
+                           [--valid_prefix VALID_PREFIX]
+                           [--model_type MODEL_TYPE] [--bos_token BOS_TOKEN]
+                           [--sp1_token SP1_TOKEN] [--sp2_token SP2_TOKEN]
+                           [--gpu GPU] [--batch_size BATCH_SIZE]
+                           [--num_workers NUM_WORKERS] [--max_len MAX_LEN]
+                           [--max_turns MAX_TURNS] [--top_p TOP_P]
+                           [--ckpt_dir CKPT_DIR] [--ckpt_name CKPT_NAME]
+val_num_question.py: error: unrecognized arguments:  
+/var/spool/slurmd/job48578/slurm_script: line 16: --data_dir=data: command not found
