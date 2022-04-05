@@ -5,12 +5,10 @@ from itertools import chain
 import torch
 import copy
 import json
-import os
-from bertopic import BERTopic
 
 
 class CustomDataset(Dataset):
-    def __init__(self, prefix, args, tokenizer=None):
+    def __init__(self, prefix, args):
         assert prefix == args.train_prefix or prefix == args.valid_prefix
         
         print(f"Loading {prefix}_id.json...")
@@ -53,19 +51,7 @@ class CustomDataset(Dataset):
                             self.labels.append(labels)
                             
                             break
-            
-            if args.prepared_topic:
-                topic_dir = os.path.join(self.args.topic_dist_dir, prefix)
-                if not os.path.isdir(topic_dir):
-                    os.makedirs(topic_dir)    
-                topic_model = BERTopic.load(self.args.topic_model_ckpt_path)
-                for i, token_utt in enumerate(labels):
-                    utt = tokenizer.decode(token_utt, skip_special_tokens=True)
-                    _, topic_dist = topic_model.transform(utt)
-                    file_name = '{}.pt'.format(i)
-                    file_path = os.path.join(topic_dir, file_name)
-                    torch.save(topic_dist, file_path)
-                
+    
     def __len__(self):
         return len(self.input_ids)
     
