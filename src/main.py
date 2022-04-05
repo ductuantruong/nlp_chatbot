@@ -95,7 +95,7 @@ class Manager():
                 power=2
             )
             
-            self.writer = SummaryWriter()
+            self.writer = SummaryWriter(log_dir=f'runs/{self.args.exp_name}')
         
         if self.args.ckpt_name is not None:
             ckpt_path = f"{self.args.ckpt_dir}/{self.args.ckpt_name}.ckpt"
@@ -131,11 +131,15 @@ class Manager():
             self.model.train()
             
             print(f"#"*50 + f"Epoch: {epoch}" + "#"*50)
-            if (self.args.num_epochs - epoch < self.args.train_topic_epochs):
-                self.curr_w_topic_loss = self.args.w_topic_loss
-            else:
-                self.curr_w_topic_loss = 0
+            if self.args.w_topic_loss:
+                if (self.args.num_epochs - epoch < self.args.train_topic_epochs):
+                    self.curr_w_topic_loss = self.args.w_topic_loss
+                else:
+                    self.curr_w_topic_loss = 0
             train_losses = []
+            train_lm_losses = []
+            train_question_losses = []
+            train_topic_losses = []
             train_ppls = []
             tqdm._instances.clear()
             for i, batch in enumerate(tqdm(self.train_loader)):
@@ -155,11 +159,11 @@ class Manager():
                 if self.args.w_question_loss:
                     ask_question_loss = self.compute_question_loss(logits=logits, ask_question_labels=ask_questions)
                 else:
-                    ask_question_loss = 0.
+                    ask_question_loss = torch.tensor(0.)
                 if self.curr_w_topic_loss:
                     topic_loss = self.compute_topic_loss(logits=logits, labels=labels)
                 else:
-                    topic_loss = 0.
+                    topic_loss = torch.tensor(0.)
                 loss = lm_loss * (1 - self.args.w_question_loss - self.curr_w_topic_loss) + ask_question_loss * self.args.w_question_loss + topic_loss * self.curr_w_topic_loss
                 self.optim.zero_grad()
                 loss.backward()
@@ -167,21 +171,34 @@ class Manager():
                 self.sched.step()
                 
                 train_losses.append(loss.detach())
+                train_lm_losses.append(lm_loss.detach())
+                train_question_losses.append(ask_question_loss.detach())
+                train_topic_losses.append(topic_loss.detach())
                 ppl = torch.exp(lm_loss.detach())
                 train_ppls.append(ppl)
             
             train_losses = [loss.item() for loss in train_losses]
+            train_lm_losses = [loss.item() for loss in train_lm_losses]
+            train_question_losses = [loss.item() for loss in train_question_losses]
+            train_topic_losses = [loss.item() for loss in train_topic_losses]
             train_ppls = [ppl.item() if not math.isinf(ppl.item()) else 1e+8 for ppl in train_ppls]
             train_loss = np.mean(train_losses)
+            train_lm_loss = np.mean(train_lm_losses)
+            train_question_loss = np.mean(train_question_losses)
+            train_topic_loss = np.mean(train_topic_losses)
             train_ppl = np.mean(train_ppls)
             print(f"Train loss: {train_loss} || Train perplexity: {train_ppl}")
+            print(f"Train LM loss: {train_lm_loss} || Train Question loss: {train_question_loss} || Train Topic loss: {train_topic_loss}")
             
-            self.writer.add_scalar("Loss/train", train_loss, epoch)
+            self.writer.add_scalar("WeightedSumLoss/train", train_loss, epoch)
+            self.writer.add_scalar("LMLoss/train", train_lm_loss, epoch)
+            self.writer.add_scalar("QuestionLoss/train", train_question_loss, epoch)
+            self.writer.add_scalar("TopicLoss/train", train_topic_loss, epoch)
             self.writer.add_scalar("PPL/train", train_ppl, epoch)
             
             self.last_epoch += 1
             
-            valid_loss, valid_ppl = self.validation()
+            valid_loss, valid_ppl, valid_lm_loss, valid_question_loss, valid_topic_loss = self.validation()
               
             if valid_loss < self.best_loss:
                 self.best_loss = valid_loss
@@ -199,13 +216,29 @@ class Manager():
               
             print(f"Best valid loss: {self.best_loss}")
             print(f"Valid loss: {valid_loss} || Valid perplexity: {valid_ppl}")
+            print(f"Valid LM loss: {valid_lm_loss} || Valid Question loss: {valid_question_loss} || Valid Topic loss: {valid_topic_loss}")
             
             self.writer.add_scalar("Loss/valid", valid_loss, epoch)
+            self.writer.add_scalar("LMLoss/valid", valid_lm_loss, epoch)
+            self.writer.add_scalar("QuestionLoss/valid", valid_question_loss, epoch)
+            self.writer.add_scalar("TopicLoss/valid", valid_topic_loss, epoch)
             self.writer.add_scalar("PPL/valid", valid_ppl, epoch)
             
             self.writer.add_scalars("Losses", {
                 'train': train_loss, 
                 'valid': valid_loss,
+            }, epoch)
+            self.writer.add_scalars("LMLosses", {
+                'train': train_lm_loss, 
+                'valid': valid_lm_loss,
+            }, epoch)
+            self.writer.add_scalars("QuestionLosses", {
+                'train': train_question_loss, 
+                'valid': valid_question_loss,
+            }, epoch)
+            self.writer.add_scalars("TopicLosses", {
+                'train': train_topic_loss, 
+                'valid': valid_topic_loss,
             }, epoch)
             self.writer.add_scalars("PPLs", {
                 'train': train_ppl,
@@ -219,6 +252,9 @@ class Manager():
         self.model.eval()
               
         valid_losses = []
+        valid_lm_losses = []
+        valid_question_losses = []
+        valid_topic_losses = []
         valid_ppls = []
         with torch.no_grad():
             for i, batch in enumerate(tqdm(self.valid_loader)):
@@ -240,26 +276,36 @@ class Manager():
                 if self.args.w_question_loss:
                     ask_question_loss = self.compute_question_loss(logits=logits, ask_question_labels=ask_questions)
                 else:
-                    ask_question_loss = 0.
+                    ask_question_loss = torch.tensor(0.)
                 if self.curr_w_topic_loss:
                     topic_loss = self.compute_topic_loss(logits=logits, labels=labels)
                 else:
-                    topic_loss = 0.
+                    topic_loss = torch.tensor(0.)
                 loss = lm_loss * (1 - self.args.w_question_loss - self.curr_w_topic_loss) + ask_question_loss * self.args.w_question_loss + topic_loss * self.curr_w_topic_loss
                 
                 valid_losses.append(loss.detach())
+                valid_lm_losses.append(lm_loss.detach())
+                valid_question_losses.append(ask_question_loss.detach())
+                valid_topic_losses.append(topic_loss.detach())
                 ppl = torch.exp(lm_loss.detach())
                 valid_ppls.append(ppl)
             
             valid_losses = [loss.item() for loss in valid_losses]
+            valid_lm_losses = [loss.item() for loss in valid_lm_losses]
+            valid_question_losses = [loss.item() for loss in valid_question_losses]
+            valid_topic_losses = [loss.item() for loss in valid_topic_losses]
+
             valid_ppls = [ppl.item() if not math.isinf(ppl.item()) else 1e+8 for ppl in valid_ppls]
             valid_loss = np.mean(valid_losses)
+            valid_lm_loss = np.mean(valid_lm_losses)
+            valid_question_loss = np.mean(valid_question_losses)
+            valid_topic_loss = np.mean(valid_topic_losses)
             valid_ppl = np.mean(valid_ppls)
             
             if math.isnan(valid_ppl):
                 valid_ppl = 1e+8
               
-        return valid_loss, valid_ppl
+        return valid_loss, valid_ppl, valid_lm_loss, valid_question_loss, valid_topic_loss
         
               
     def infer(self):
@@ -397,8 +443,9 @@ if __name__=='__main__':
     parser.add_argument('--top_p', type=float, default=0.9, help="The top-p value for nucleus sampling decoding.")
     parser.add_argument('--w_question_loss', type=float, default=0.25, help="The weight value of question loss.")
     parser.add_argument('--w_topic_loss', type=float, default=0.25, help="The weight value of topic loss.")
-    parser.add_argument('--ckpt_dir', type=str, default="saved_models", help="The directory name for saved checkpoints.")
     parser.add_argument('--ckpt_name', type=str, required=False, help="The name of the trained checkpoint. (without extension)")
+    parser.add_argument('--ckpt_dir', type=str, default="saved_models", help="The directory name for saved checkpoints.")
+    parser.add_argument('--exp_name', type=str, default="latest", required=False, help="The name of experiment name")
     parser.add_argument('--topic_model_ckpt_path', type=str, default='saved_models/topic_modelling/mymodel', help="The path of the trained checkpoint of the topic model.")
     parser.add_argument('--end_command', type=str, default="Abort!", help="The command to stop the conversation when inferencing.")
               
@@ -411,7 +458,7 @@ if __name__=='__main__':
     ]
     
     args.data_dir = f"{args.data_dir}/{args.model_type}"
-    args.ckpt_dir = f"{args.ckpt_dir}/{args.model_type}"
+    args.ckpt_dir = f"{args.ckpt_dir}/{args.model_type}/{args.exp_name}"
               
     if args.mode == 'train':
         manager = Manager(args)
