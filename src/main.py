@@ -132,9 +132,9 @@ class Manager():
             
             print(f"#"*50 + f"Epoch: {epoch}" + "#"*50)
             if (self.args.num_epochs - epoch < self.args.train_topic_epochs):
-                curr_w_topic_loss = self.args.w_topic_loss
+                self.curr_w_topic_loss = self.args.w_topic_loss
             else:
-                curr_w_topic_loss = 0
+                self.curr_w_topic_loss = 0
             train_losses = []
             train_ppls = []
             tqdm._instances.clear()
@@ -156,11 +156,11 @@ class Manager():
                     ask_question_loss = self.compute_question_loss(logits=logits, ask_question_labels=ask_questions)
                 else:
                     ask_question_loss = 0.
-                if curr_w_topic_loss:
+                if self.curr_w_topic_loss:
                     topic_loss = self.compute_topic_loss(logits=logits, labels=labels)
                 else:
                     topic_loss = 0.
-                loss = lm_loss * (1 - self.args.w_question_loss - curr_w_topic_loss) + ask_question_loss * self.args.w_question_loss + topic_loss * curr_w_topic_loss
+                loss = lm_loss * (1 - self.args.w_question_loss - self.curr_w_topic_loss) + ask_question_loss * self.args.w_question_loss + topic_loss * self.curr_w_topic_loss
                 self.optim.zero_grad()
                 loss.backward()
                 self.optim.step()
@@ -236,10 +236,19 @@ class Manager():
                 shift_logits = logits[..., :-1, :].contiguous()
                 shift_labels = labels[..., 1:].contiguous()
                 criteria = nn.CrossEntropyLoss(ignore_index=self.args.pad_id)
-                loss = criteria(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+                lm_loss = criteria(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+                if self.args.w_question_loss:
+                    ask_question_loss = self.compute_question_loss(logits=logits, ask_question_labels=ask_questions)
+                else:
+                    ask_question_loss = 0.
+                if self.curr_w_topic_loss:
+                    topic_loss = self.compute_topic_loss(logits=logits, labels=labels)
+                else:
+                    topic_loss = 0.
+                loss = lm_loss * (1 - self.args.w_question_loss - self.curr_w_topic_loss) + ask_question_loss * self.args.w_question_loss + topic_loss * self.curr_w_topic_loss
                 
                 valid_losses.append(loss.detach())
-                ppl = torch.exp(loss.detach())
+                ppl = torch.exp(lm_loss.detach())
                 valid_ppls.append(ppl)
             
             valid_losses = [loss.item() for loss in valid_losses]
