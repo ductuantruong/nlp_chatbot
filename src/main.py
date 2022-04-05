@@ -136,6 +136,8 @@ class Manager():
                     self.curr_w_topic_loss = self.args.w_topic_loss
                 else:
                     self.curr_w_topic_loss = 0
+            else:
+                self.curr_w_topic_loss = 0
             train_losses = []
             train_lm_losses = []
             train_question_losses = []
@@ -391,7 +393,7 @@ class Manager():
                 predicted_ask_question.append(ask_question_labels[utt].view(1))
         predicted_ask_question = torch.cat(predicted_ask_question)
         predicted_ask_question = F.one_hot(predicted_ask_question, 3)
-        criteria = nn.CrossEntropyLoss(ignore_index=self.args.pad_id)
+        criteria = nn.CrossEntropyLoss(weight=[0.05, 0.4, 0.55], ignore_index=self.args.pad_id)
         ask_question_loss = criteria(predicted_ask_question.float().to(self.args.device), ask_question_labels)
         return ask_question_loss
 

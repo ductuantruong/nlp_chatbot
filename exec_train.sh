@@ -13,7 +13,7 @@ python src/main.py \
     --warmup_ratio=0.0 \
     --batch_size=12 \
     --num_workers=0 \
-    --num_epochs=10 \
+    --num_epochs=20 \
     --max_len=1024 \
     --max_turns=5 \
     --ckpt_dir="saved_models" \
