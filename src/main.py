@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 from torch.nn import functional as F
 from torch.utils.tensorboard import SummaryWriter
 from itertools import chain
-from bertopic import BERTopic
+import gensim
 
 import torch
 import torch.nn as nn
@@ -30,9 +30,9 @@ class Manager():
         print("Loading the tokenizer...")
         self.tokenizer = GPT2Tokenizer.from_pretrained(self.args.model_type)
         if self.args.w_topic_loss:
-            print("Loading the BERTopic...")
-            self.topic_model = BERTopic.load(self.args.topic_model_ckpt_path)
-        
+            print("Loading the Topic Modelling model...")
+            self.topic_model = gensim.models.LdaModel.load(self.args.topic_model_ckpt_path)
+            self.id2word = self.topic_model.id2word
         special_tokens = {
             'bos_token': self.args.bos_token,
             'pad_token': self.args.pad_token,
@@ -131,6 +131,10 @@ class Manager():
             self.model.train()
             
             print(f"#"*50 + f"Epoch: {epoch}" + "#"*50)
+            if (self.args.num_epochs - epoch < self.args.train_topic_epochs):
+                curr_w_topic_loss = self.args.w_topic_loss
+            else:
+                curr_w_topic_loss = 0
             train_losses = []
             train_ppls = []
             tqdm._instances.clear()
@@ -152,11 +156,11 @@ class Manager():
                     ask_question_loss = self.compute_question_loss(logits=logits, ask_question_labels=ask_questions)
                 else:
                     ask_question_loss = 0.
-                if self.args.w_topic_loss:
+                if curr_w_topic_loss:
                     topic_loss = self.compute_topic_loss(logits=logits, labels=labels)
                 else:
                     topic_loss = 0.
-                loss = lm_loss * (1 - self.args.w_question_loss - self.args.w_topic_loss) + ask_question_loss * self.args.w_question_loss + topic_loss * self.args.w_topic_loss
+                loss = lm_loss * (1 - self.args.w_question_loss - curr_w_topic_loss) + ask_question_loss * self.args.w_question_loss + topic_loss * curr_w_topic_loss
                 self.optim.zero_grad()
                 loss.backward()
                 self.optim.step()
@@ -339,9 +343,15 @@ class Manager():
     def compute_topic_loss(self, logits, labels):
         token_seq = torch.argmax(logits, dim=-1)
         pred_res = self.tokenizer.batch_decode(token_seq, skip_special_tokens=True)
+        pred_res =  [self.id2word.doc2bow(res.lower().split()) for res in pred_res]
         gt_res = self.tokenizer.batch_decode(labels, skip_special_tokens=True)
-        _, pred_res_topic = self.topic_model.transform(pred_res) 
-        _, gt_res_topic = self.topic_model.transform(gt_res)
+        gt_res =  [self.id2word.doc2bow(res.lower().split()) for res in gt_res]
+
+        pred_res_topic, _ = self.topic_model.inference(pred_res)
+        pred_res_topic = F.softmax(torch.from_numpy(pred_res_topic), dim=-1)
+        gt_res_topic, _ = self.topic_model.inference(gt_res)
+        gt_res_topic = F.softmax(torch.from_numpy(gt_res_topic), dim=-1)
+
         pred_res_topic, gt_res_topic = torch.tensor(pred_res_topic, dtype=torch.float), torch.tensor(gt_res_topic, dtype=torch.float)
         criteria = nn.KLDivLoss(reduction="batchmean", log_target=True)
         topic_loss = criteria(pred_res_topic, gt_res_topic)
@@ -372,6 +382,7 @@ if __name__=='__main__':
     parser.add_argument('--batch_size', type=int, default=8, help="The batch size.")
     parser.add_argument('--num_workers', type=int, default=0, help="The number of workers for data loading.")
     parser.add_argument('--num_epochs', type=int, default=10, help="The number of total epochs.")
+    parser.add_argument('--train_topic_epochs', type=int, default=5, help="The number of epochs apdating topic loss.")
     parser.add_argument('--max_len', type=int, default=1024, help="The maximum length of input sequence.")
     parser.add_argument('--max_turns', type=int, default=5, help="The maximum number of dialogue histories to include.")
     parser.add_argument('--top_p', type=float, default=0.9, help="The top-p value for nucleus sampling decoding.")
@@ -379,7 +390,7 @@ if __name__=='__main__':
     parser.add_argument('--w_topic_loss', type=float, default=0.25, help="The weight value of topic loss.")
     parser.add_argument('--ckpt_dir', type=str, default="saved_models", help="The directory name for saved checkpoints.")
     parser.add_argument('--ckpt_name', type=str, required=False, help="The name of the trained checkpoint. (without extension)")
-    parser.add_argument('--topic_model_ckpt_path', type=str, default='saved_models/topic_modelling/model.bertopic', help="The path of the trained checkpoint of the topic model.")
+    parser.add_argument('--topic_model_ckpt_path', type=str, default='saved_models/topic_modelling/mymodel', help="The path of the trained checkpoint of the topic model.")
     parser.add_argument('--end_command', type=str, default="Abort!", help="The command to stop the conversation when inferencing.")
               
     args = parser.parse_args()
