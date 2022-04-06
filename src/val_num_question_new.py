@@ -1,10 +1,11 @@
 from transformers import GPT2Tokenizer, GPT2LMHeadModel, get_polynomial_decay_schedule_with_warmup
-from custom_dataset import *
+from custom_dataset_new import *
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torch.nn import functional as F
 from torch.utils.tensorboard import SummaryWriter
 from itertools import chain
+import gensim
 from utils_num_question import *
 
 import torch
@@ -29,19 +30,24 @@ class Manager():
         # Tokenizer & Vocab
         print("Loading the tokenizer...")
         self.tokenizer = GPT2Tokenizer.from_pretrained(self.args.model_type)
+        if self.args.w_topic_loss:
+            print("Loading the Topic Modelling model...")
+            self.topic_model = gensim.models.LdaModel.load(self.args.topic_model_ckpt_path)
+            self.id2word = self.topic_model.id2word
         special_tokens = {
             'bos_token': self.args.bos_token,
+            'pad_token': self.args.pad_token,
             'additional_special_tokens': [self.args.sp1_token, self.args.sp2_token]
         }
         self.args.eos_token = self.tokenizer.eos_token
         num_new_tokens = self.tokenizer.add_special_tokens(special_tokens)
         vocab = self.tokenizer.get_vocab()
         self.args.vocab_size = len(vocab)
+        self.args.pad_id = vocab[self.args.pad_token]
         self.args.bos_id = vocab[self.args.bos_token]
         self.args.eos_id = vocab[self.args.eos_token]
         self.args.sp1_id = vocab[self.args.sp1_token]
         self.args.sp2_id = vocab[self.args.sp2_token]
-        
         # Load model    
         print("Loading the model...")
         self.fix_seed(self.args.seed)
@@ -50,19 +56,16 @@ class Manager():
         
         self.args.max_len = min(self.args.max_len, self.model.config.n_ctx)
             
-        ppd = PadCollate(eos_id=self.args.eos_id)
         valid_set = CustomDataset(self.args.valid_prefix, self.args)
-           
+        ppd = PadCollate(eos_id=self.args.eos_id, pad_id=self.args.pad_id)
+            
+
         self.valid_loader = DataLoader(valid_set, 
                                            collate_fn=ppd.pad_collate,
                                            batch_size=self.args.batch_size, 
                                            num_workers=self.args.num_workers, 
                                            pin_memory=True)
-            
- 
-            # Calculate total training steps
-
-        
+           
         if self.args.ckpt_name is not None:
             ckpt_path = f"{self.args.ckpt_dir}/{self.args.ckpt_name}.ckpt"
             if os.path.exists(ckpt_path):
@@ -74,9 +77,8 @@ class Manager():
             else:
                 print(f"Cannot fine the specified checkpoint {ckpt_path}")
                 exit()
-              
+
         print("Setting finished.")
-              
    
     
     def validation(self):
@@ -165,6 +167,11 @@ if __name__=='__main__':
     parser.add_argument('--top_p', type=float, default=0.9, help="The top-p value for nucleus sampling decoding.")
     parser.add_argument('--ckpt_dir', type=str, default="saved_models", help="The directory name for saved checkpoints.")
     parser.add_argument('--ckpt_name', type=str, required=False, help="The name of the trained checkpoint. (without extension)")           
+    parser.add_argument('--w_question_loss', type=float, default=0.25, help="The weight value of question loss.")
+    parser.add_argument('--w_topic_loss', type=float, default=0.25, help="The weight value of topic loss.")
+    parser.add_argument('--topic_model_ckpt_path', type=str, default='saved_models/topic_modelling/mymodel', help="The path of the trained checkpoint of the topic model.")
+    parser.add_argument('--pad_token', type=str, default="<pad>", help="The PAD token.")
+
     args = parser.parse_args()
     
     assert args.model_type in [
@@ -179,4 +186,3 @@ if __name__=='__main__':
 
     manager = Manager(args)
     manager.validation()
-

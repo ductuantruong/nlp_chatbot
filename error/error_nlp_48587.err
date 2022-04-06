@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "/home/MSAI/s210038/NLP/nlp_chatbot/src/val_num_question_new.py", line 184, in <module>
+    manager = Manager(args)
+  File "/home/MSAI/s210038/NLP/nlp_chatbot/src/val_num_question_new.py", line 34, in __init__
+    self.topic_model = gensim.models.LdaModel.load(self.args.topic_model_ckpt_path)
+AttributeError: 'Namespace' object has no attribute 'topic_model_ckpt_path'

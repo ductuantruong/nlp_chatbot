@@ -1,0 +1,7 @@
+  0%|          | 0/2832 [00:00<?, ?it/s] 50%|█████     | 1427/2832 [00:00<00:00, 5834.09it/s]100%|██████████| 2832/2832 [00:00<00:00, 8260.72it/s]
+Traceback (most recent call last):
+  File "/home/MSAI/s210038/NLP/nlp_chatbot/src/val_num_question_new.py", line 186, in <module>
+    manager = Manager(args)
+  File "/home/MSAI/s210038/NLP/nlp_chatbot/src/val_num_question_new.py", line 59, in __init__
+    ppd = PadCollate(eos_id=self.args.eos_id, pad_id=self.args.pad_id)
+TypeError: __init__() got an unexpected keyword argument 'pad_id'

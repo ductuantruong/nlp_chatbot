@@ -350,7 +350,8 @@ if __name__=='__main__':
     parser.add_argument('--ckpt_dir', type=str, default="saved_models", help="The directory name for saved checkpoints.")
     parser.add_argument('--ckpt_name', type=str, required=False, help="The name of the trained checkpoint. (without extension)")
     parser.add_argument('--end_command', type=str, default="Abort!", help="The command to stop the conversation when inferencing.")
-              
+    parser.add_argument('--end_command', type=str, default="Abort!", help="The command to stop the conversation when inferencing.")
+
     args = parser.parse_args()
     
     assert args.mode in ["train", "infer"]

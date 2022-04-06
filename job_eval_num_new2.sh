@@ -10,7 +10,7 @@
 
 module load anaconda
 source activate kietcdx
-python src/val_num_question.py \
+python src/val_num_question_new.py \
     --seed=0 \
     --data_dir="data" \
     --model_type="gpt2" \
@@ -21,4 +21,4 @@ python src/val_num_question.py \
     --max_len=1024 \
     --top_p=0.8 \
     --ckpt_dir="saved_models" \
-    --ckpt_name="best_ckpt_epoch=9_valid_loss=2.6049_wo_q_loss_old_pad" \
+    --ckpt_name="best_ckpt_epoch=19_valid_loss=2.3336_question_loss" \
