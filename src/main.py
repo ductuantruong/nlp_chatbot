@@ -5,7 +5,6 @@ from torch.utils.data import DataLoader
 from torch.nn import functional as F
 from torch.utils.tensorboard import SummaryWriter
 from itertools import chain
-import gensim
 
 import torch
 import torch.nn as nn
@@ -30,9 +29,16 @@ class Manager():
         print("Loading the tokenizer...")
         self.tokenizer = GPT2Tokenizer.from_pretrained(self.args.model_type)
         if self.args.w_topic_loss:
-            print("Loading the Topic Modelling model...")
-            self.topic_model = gensim.models.LdaModel.load(self.args.topic_model_ckpt_path)
-            self.id2word = self.topic_model.id2word
+            if self.args.topic_model == "LDA":
+                import gensim
+                print("Loading the LDA Topic Modelling model...")
+                self.topic_model = gensim.models.LdaModel.load('saved_models/topic_modelling/lda/mymodel')
+                self.id2word = self.topic_model.id2word
+            elif self.args.topic_model == "BERT":
+                from bertopic import BERTopic
+                print("Loading the BERT Topic Modelling model...")
+                self.topic_model = BERTopic.load('saved_models/topic_modelling/bert/model_w_prob.bertopic')
+                self.args.train_topic_epochs = 1
         special_tokens = {
             'bos_token': self.args.bos_token,
             'pad_token': self.args.pad_token,
@@ -127,7 +133,7 @@ class Manager():
         print("Training starts.")
         
         start_epoch = self.last_epoch+1
-        for epoch in range(start_epoch, start_epoch+self.args.num_epochs):
+        for epoch in range(start_epoch, start_epoch+self.args.num_epochs+1):
             self.model.train()
             
             print(f"#"*50 + f"Epoch: {epoch}" + "#"*50)
@@ -400,14 +406,18 @@ class Manager():
     def compute_topic_loss(self, logits, labels):
         token_seq = torch.argmax(logits, dim=-1)
         pred_res = self.tokenizer.batch_decode(token_seq, skip_special_tokens=True)
-        pred_res =  [self.id2word.doc2bow(res.lower().split()) for res in pred_res]
         gt_res = self.tokenizer.batch_decode(labels, skip_special_tokens=True)
-        gt_res =  [self.id2word.doc2bow(res.lower().split()) for res in gt_res]
-
-        pred_res_topic, _ = self.topic_model.inference(pred_res)
-        pred_res_topic = F.softmax(torch.from_numpy(pred_res_topic), dim=-1)
-        gt_res_topic, _ = self.topic_model.inference(gt_res)
-        gt_res_topic = F.softmax(torch.from_numpy(gt_res_topic), dim=-1)
+        
+        if self.args.topic_model == "LDA":
+            pred_res =  [self.id2word.doc2bow(res.lower().split()) for res in pred_res]
+            gt_res =  [self.id2word.doc2bow(res.lower().split()) for res in gt_res]
+            pred_res_topic, _ = self.topic_model.inference(pred_res)
+            pred_res_topic = F.softmax(torch.from_numpy(pred_res_topic), dim=-1)
+            gt_res_topic, _ = self.topic_model.inference(gt_res)
+            gt_res_topic = F.softmax(torch.from_numpy(gt_res_topic), dim=-1)
+        elif self.args.topic_model == "BERT":
+            _, pred_res_topic = self.topic_model.transform(pred_res) 
+            _, gt_res_topic = self.topic_model.transform(gt_res)
 
         pred_res_topic, gt_res_topic = torch.tensor(pred_res_topic, dtype=torch.float), torch.tensor(gt_res_topic, dtype=torch.float)
         criteria = nn.KLDivLoss(reduction="batchmean", log_target=True)
@@ -448,6 +458,7 @@ if __name__=='__main__':
     parser.add_argument('--ckpt_name', type=str, required=False, help="The name of the trained checkpoint. (without extension)")
     parser.add_argument('--ckpt_dir', type=str, default="saved_models", help="The directory name for saved checkpoints.")
     parser.add_argument('--exp_name', type=str, default="latest", required=False, help="The name of experiment name")
+    parser.add_argument('--topic_model', type=str, default='LDA', help="The type of topic model.")
     parser.add_argument('--topic_model_ckpt_path', type=str, default='saved_models/topic_modelling/mymodel', help="The path of the trained checkpoint of the topic model.")
     parser.add_argument('--end_command', type=str, default="Abort!", help="The command to stop the conversation when inferencing.")
               
@@ -464,10 +475,9 @@ if __name__=='__main__':
               
     if args.mode == 'train':
         manager = Manager(args)
-        manager.train()
-        
+        manager.train()        
     elif args.mode == 'infer':
         assert args.ckpt_name is not None, "Please specify the trained model checkpoint."
-        
+    
         manager = Manager(args)
         manager.infer()
