@@ -89,7 +89,7 @@ class Manager():
                 power=2
             )
             
-            self.writer = SummaryWriter()
+            self.writer = SummaryWriter(log_dir=f'runs/{self.args.exp_name}')
         
         if self.args.ckpt_name is not None:
             ckpt_path = f"{self.args.ckpt_dir}/{self.args.ckpt_name}.ckpt"
@@ -337,6 +337,7 @@ if __name__=='__main__':
     parser.add_argument('--max_len', type=int, default=1024, help="The maximum length of input sequence.")
     parser.add_argument('--max_turns', type=int, default=5, help="The maximum number of dialogue histories to include.")
     parser.add_argument('--top_p', type=float, default=0.9, help="The top-p value for nucleus sampling decoding.")
+    parser.add_argument('--exp_name', type=str, default="original", required=False, help="The name of experiment name")
     parser.add_argument('--ckpt_dir', type=str, default="saved_models", help="The directory name for saved checkpoints.")
     parser.add_argument('--ckpt_name', type=str, required=False, help="The name of the trained checkpoint. (without extension)")
     parser.add_argument('--end_command', type=str, default="Abort!", help="The command to stop the conversation when inferencing.")
@@ -350,7 +351,7 @@ if __name__=='__main__':
     ]
     
     args.data_dir = f"{args.data_dir}/{args.model_type}"
-    args.ckpt_dir = f"{args.ckpt_dir}/{args.model_type}"
+    args.ckpt_dir = f"{args.ckpt_dir}/{args.model_type}/args.ckpt_dir"
               
     if args.mode == 'train':
         manager = Manager(args)
