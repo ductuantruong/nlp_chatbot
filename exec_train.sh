@@ -9,11 +9,12 @@ python src/main.py \
     --sp1_token="<sp1>" \
     --sp2_token="<sp2>" \
     --gpu="0" \
-    --lr=1e-5 \
+    --lr=2e-5 \
     --warmup_ratio=0.0 \
     --batch_size=16 \
     --num_workers=0 \
     --num_epochs=20 \
     --max_len=1024 \
     --max_turns=5 \
+    --ckpt_name="best_ckpt_epoch=4_valid_loss=2.6385" \
     --ckpt_dir="saved_models"
