@@ -11,12 +11,13 @@ python src/main.py \
     --gpu="0" \
     --lr=1e-5 \
     --warmup_ratio=0.0 \
-    --batch_size=12 \
+    --batch_size=24 \
     --num_workers=0 \
-    --num_epochs=20 \
+    --num_epochs=1 \
     --max_len=1024 \
     --max_turns=5 \
     --ckpt_dir="saved_models" \
-    --exp_name="no_other_loss" \
-    --w_question_loss=0 \
-    --w_topic_loss=0 \
+    --ckpt_name="saved_models/gpt2/all_loss_BERT_1_epoch/best_ckpt_epoch=20_valid_loss=1.7418.ckpt"\
+    --exp_name="all_loss_BERT_1_epoch" \
+    --w_question_loss=0.25 \
+    --w_topic_loss=0.25 \

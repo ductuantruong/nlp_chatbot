@@ -104,14 +104,14 @@ class Manager():
             self.writer = SummaryWriter(log_dir=f'runs/{self.args.exp_name}')
         
         if self.args.ckpt_name is not None:
-            ckpt_path = f"{self.args.ckpt_dir}/{self.args.ckpt_name}.ckpt"
+            ckpt_path = f"{self.args.ckpt_name}"
             if os.path.exists(ckpt_path):
                 print("Loading the trained checkpoint...")
                 ckpt = torch.load(ckpt_path, map_location=self.args.device)
                 self.model.load_state_dict(ckpt['model_state_dict'])
                 
                 if self.args.mode == 'train':
-                    print(f"The training restarts with the specified checkpoint: {self.args.ckpt_name}.ckpt.")
+                    print(f"The training restarts with the specified checkpoint: {self.args.ckpt_name}")
                     self.optim.load_state_dict(ckpt['optim_state_dict'])
                     self.sched.load_state_dict(ckpt['sched_state_dict'])
                     self.best_loss = ckpt['loss']
@@ -269,7 +269,6 @@ class Manager():
                 input_ids, token_type_ids, labels, ask_questions = batch
                 input_ids, token_type_ids, labels, ask_questions = \
                     input_ids.to(self.args.device), token_type_ids.to(self.args.device), labels.to(self.args.device), ask_questions.to(self.args.device)
-                
                 outputs = self.model(
                     input_ids=input_ids,
                     token_type_ids = token_type_ids,
@@ -418,7 +417,6 @@ class Manager():
         elif self.args.topic_model == "BERT":
             _, pred_res_topic = self.topic_model.transform(pred_res) 
             _, gt_res_topic = self.topic_model.transform(gt_res)
-
         pred_res_topic, gt_res_topic = torch.tensor(pred_res_topic, dtype=torch.float), torch.tensor(gt_res_topic, dtype=torch.float)
         criteria = nn.KLDivLoss(reduction="batchmean", log_target=True)
         topic_loss = criteria(pred_res_topic, gt_res_topic)
@@ -458,8 +456,8 @@ if __name__=='__main__':
     parser.add_argument('--ckpt_name', type=str, required=False, help="The name of the trained checkpoint. (without extension)")
     parser.add_argument('--ckpt_dir', type=str, default="saved_models", help="The directory name for saved checkpoints.")
     parser.add_argument('--exp_name', type=str, default="latest", required=False, help="The name of experiment name")
-    parser.add_argument('--topic_model', type=str, default='LDA', help="The type of topic model.")
-    parser.add_argument('--topic_model_ckpt_path', type=str, default='saved_models/topic_modelling/mymodel', help="The path of the trained checkpoint of the topic model.")
+    parser.add_argument('--topic_model', type=str, default='BERT', help="The type of topic model.")
+    parser.add_argument('--topic_model_ckpt_path', type=str, default='saved_models/topic_modelling/model_w_prob.bertopic', help="The path of the trained checkpoint of the topic model.")
     parser.add_argument('--end_command', type=str, default="Abort!", help="The command to stop the conversation when inferencing.")
               
     args = parser.parse_args()
