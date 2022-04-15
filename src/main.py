@@ -1,3 +1,4 @@
+from turtle import forward
 from transformers import GPT2Tokenizer, GPT2LMHeadModel, get_polynomial_decay_schedule_with_warmup
 from custom_dataset import *
 from tqdm import tqdm
@@ -15,7 +16,19 @@ import copy
 import math
 import random
 
-
+class MainModel(nn.Module):
+    def __init__(self, args, topic_feature_dim):
+        super().__init__()
+        self.args = args
+        self.gpt = GPT2LMHeadModel.from_pretrained(self.args.model_type).to(self.args.device)    
+        self.gpt.resize_token_embeddings(self.args.vocab_size)
+        self.fc_1 = nn.Linear(self.args.vocab_size, topic_feature_dim)
+    def forward(self, input_ids, token_type_ids, labels):
+        gpt_outputs = self.gpt(input_ids, token_type_ids, labels)
+        _, logits = gpt_outputs[0], gpt_outputs[1]
+        topic_embedding = self.fc_1(logits)
+        return topic_embedding, gpt_outputs
+    
 class Manager():
     def __init__(self, args):
         self.args = args
@@ -56,9 +69,9 @@ class Manager():
         # Load model    
         print("Loading the model...")
         self.fix_seed(self.args.seed)
-        self.model = GPT2LMHeadModel.from_pretrained(self.args.model_type).to(self.args.device)
-        self.model.resize_token_embeddings(self.args.vocab_size)
-        
+        # self.model = GPT2LMHeadModel.from_pretrained(self.args.model_type).to(self.args.device)
+        # self.model.resize_token_embeddings(self.args.vocab_size)
+        self.model = MainModel(self.args, topic_feature_dim=20)
         self.args.max_len = min(self.args.max_len, self.model.config.n_ctx)
             
         if self.args.mode == 'train':            
@@ -154,7 +167,7 @@ class Manager():
                 input_ids, token_type_ids, labels, ask_questions = batch
                 input_ids, token_type_ids, labels, ask_questions = \
                     input_ids.to(self.args.device), token_type_ids.to(self.args.device), labels.to(self.args.device), ask_questions.to(self.args.device)
-                outputs = self.model(
+                topic_emb, outputs = self.model(
                     input_ids=input_ids,
                     token_type_ids = token_type_ids,
                     labels = labels
@@ -169,7 +182,7 @@ class Manager():
                 else:
                     ask_question_loss = torch.tensor(0.)
                 if self.curr_w_topic_loss:
-                    topic_loss = self.compute_topic_loss(logits=logits, labels=labels)
+                    topic_loss = self.compute_topic_loss(pred_res_topic=topic_emb, labels=labels)
                 else:
                     topic_loss = torch.tensor(0.)
                 loss = lm_loss * (1 - self.args.w_question_loss - self.curr_w_topic_loss) + ask_question_loss * self.args.w_question_loss + topic_loss * self.curr_w_topic_loss
@@ -269,7 +282,7 @@ class Manager():
                 input_ids, token_type_ids, labels, ask_questions = batch
                 input_ids, token_type_ids, labels, ask_questions = \
                     input_ids.to(self.args.device), token_type_ids.to(self.args.device), labels.to(self.args.device), ask_questions.to(self.args.device)
-                outputs = self.model(
+                topic_emb, outputs = self.model(
                     input_ids=input_ids,
                     token_type_ids = token_type_ids,
                     labels = labels
@@ -285,7 +298,7 @@ class Manager():
                 else:
                     ask_question_loss = torch.tensor(0.)
                 if self.curr_w_topic_loss:
-                    topic_loss = self.compute_topic_loss(logits=logits, labels=labels)
+                    topic_loss = self.compute_topic_loss(pred_res_topic=topic_emb, labels=labels)
                 else:
                     topic_loss = torch.tensor(0.)
                 loss = lm_loss * (1 - self.args.w_question_loss - self.curr_w_topic_loss) + ask_question_loss * self.args.w_question_loss + topic_loss * self.curr_w_topic_loss
@@ -359,7 +372,7 @@ class Manager():
     def nucleus_sampling(self, input_ids, token_type_ids, input_len):
         output_ids = []
         for pos in range(input_len, self.args.max_len):
-            output = self.model(input_ids=input_ids, token_type_ids=token_type_ids)[0][:, pos-1]  # (1, V)
+            topic_emb, output = self.model(input_ids=input_ids, token_type_ids=token_type_ids)[0][:, pos-1]  # (1, V)
             output = F.softmax(output, dim=-1)  # (1, V)
             
             sorted_probs, sorted_idxs = torch.sort(output, descending=True)
@@ -402,20 +415,13 @@ class Manager():
         ask_question_loss = criteria(predicted_ask_question.float().to(self.args.device), ask_question_labels)
         return ask_question_loss
 
-    def compute_topic_loss(self, logits, labels):
-        token_seq = torch.argmax(logits, dim=-1)
-        pred_res = self.tokenizer.batch_decode(token_seq, skip_special_tokens=True)
+    def compute_topic_loss(self, pred_res_topic, labels):
         gt_res = self.tokenizer.batch_decode(labels, skip_special_tokens=True)
-        
         if self.args.topic_model == "LDA":
-            pred_res =  [self.id2word.doc2bow(res.lower().split()) for res in pred_res]
             gt_res =  [self.id2word.doc2bow(res.lower().split()) for res in gt_res]
-            pred_res_topic, _ = self.topic_model.inference(pred_res)
-            pred_res_topic = F.softmax(torch.from_numpy(pred_res_topic), dim=-1)
             gt_res_topic, _ = self.topic_model.inference(gt_res)
             gt_res_topic = F.softmax(torch.from_numpy(gt_res_topic), dim=-1)
         elif self.args.topic_model == "BERT":
-            _, pred_res_topic = self.topic_model.transform(pred_res) 
             _, gt_res_topic = self.topic_model.transform(gt_res)
         pred_res_topic, gt_res_topic = torch.tensor(pred_res_topic, dtype=torch.float), torch.tensor(gt_res_topic, dtype=torch.float)
         criteria = nn.KLDivLoss(reduction="batchmean", log_target=True)
