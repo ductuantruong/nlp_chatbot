@@ -1,4 +1,5 @@
 from turtle import forward
+from cv2 import log
 from transformers import GPT2Tokenizer, GPT2LMHeadModel, get_polynomial_decay_schedule_with_warmup
 from custom_dataset import *
 from tqdm import tqdm
@@ -15,19 +16,55 @@ import argparse
 import copy
 import math
 import random
+class QuestionFunction(nn.Function):
+    @staticmethod
+    def forward(ctx, logits, ask_question_labels, tokenizer):
+        # ctx is a context object that can be used to stash information
+        # for backward computation
+        ctx.save_for_backward(logits)
+        pred_res = tokenizer.batch_decode(logits, skip_special_tokens=True)
+        
+        token_seq = torch.argmax(logits, dim=-1)
+        last_token = token_seq[:, -1]
+        predicted_ask_question = []
+        for i, utt in enumerate(pred_res):
+            last_token = utt[-1] if len(utt) > 0 else None
+            if last_token != '?':
+                predicted_ask_question.append(torch.LongTensor([0]))
+            else:
+                predicted_ask_question.append(ask_question_labels[utt].view(1))
+        predicted_ask_question = torch.cat(predicted_ask_question)
+        predicted_ask_question = F.one_hot(predicted_ask_question, 3)
+        return predicted_ask_question
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        return grad_output
+
+# class TopicFunction(nn.Function):
+    # @staticmethod
+    # def forward(ctx, logit, constant):
+        # ctx.constant = constant
+        # return tensor * constant
+    # @staticmethod
+    # def backward(ctx, grad_output):
+        # return grad_output * ctx.constant, None
 
 class MainModel(nn.Module):
-    def __init__(self, args, topic_feature_dim):
+    def __init__(self, args, tokenizer):
         super().__init__()
         self.args = args
+        self.tokenizer = tokenizer
         self.gpt = GPT2LMHeadModel.from_pretrained(self.args.model_type).to(self.args.device)    
         self.gpt.resize_token_embeddings(self.args.vocab_size)
-        self.fc_1 = nn.Linear(self.args.vocab_size, topic_feature_dim)
-    def forward(self, input_ids, token_type_ids, labels):
+        self.question_layer = QuestionFunction()
+        # self.topic_layer = TopicFunction()
+    def forward(self, input_ids, token_type_ids, labels, ask_questions):
         gpt_outputs = self.gpt(input_ids=input_ids, token_type_ids=token_type_ids, labels=labels)
         _, logits = gpt_outputs[0], gpt_outputs[1]
-        topic_embedding = self.fc_1(logits)
-        return topic_embedding, gpt_outputs
+        question_output = self.question_layer(logits, ask_questions, self.tokenizer)
+        # topic_embedding = self.topic_layer(logits)
+        return gpt_outputs, question_output
     
 class Manager():
     def __init__(self, args):
@@ -71,7 +108,7 @@ class Manager():
         self.fix_seed(self.args.seed)
         #self.model = GPT2LMHeadModel.from_pretrained(self.args.model_type).to(self.args.device)
         #self.model.resize_token_embeddings(self.args.vocab_size)
-        self.model = MainModel(self.args, topic_feature_dim=20)
+        self.model = MainModel(self.args, self.tokenizer)
         #self.args.max_len = min(self.args.max_len, self.model.config.n_ctx)
         self.args.max_len = min(self.args.max_len, self.model.gpt.config.n_ctx)
             
@@ -168,10 +205,11 @@ class Manager():
                 input_ids, token_type_ids, labels, ask_questions = batch
                 input_ids, token_type_ids, labels, ask_questions = \
                     input_ids.to(self.args.device), token_type_ids.to(self.args.device), labels.to(self.args.device), ask_questions.to(self.args.device)
-                topic_emb, outputs = self.model(
+                outputs, predicted_ask_question = self.model(
                     input_ids=input_ids,
                     token_type_ids = token_type_ids,
-                    labels = labels
+                    labels = labels,
+                    ask_questions=ask_questions
                 )
                 _, logits = outputs[0], outputs[1]
                 shift_logits = logits[..., :-1, :].contiguous()
@@ -179,11 +217,13 @@ class Manager():
                 criteria = nn.CrossEntropyLoss(ignore_index=self.args.pad_id)
                 lm_loss = criteria(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
                 if self.args.w_question_loss:
-                    ask_question_loss = self.compute_question_loss(logits=logits, ask_question_labels=ask_questions)
+                    # ask_question_loss = self.compute_question_loss(logits=logits, ask_question_labels=ask_questions)
+                    criteria_1 = nn.CrossEntropyLoss(weight=torch.FloatTensor([0.05, 0.4, 0.55]).to(self.args.device), ignore_index=self.args.pad_id)
+                    ask_question_loss = criteria_1(predicted_ask_question.float().to(self.args.device), ask_questions)
                 else:
                     ask_question_loss = torch.tensor(0.)
                 if self.curr_w_topic_loss:
-                    topic_loss = self.compute_topic_loss(pred_res_topic=topic_emb, labels=labels)
+                    topic_loss = self.compute_topic_loss(pred_res_topic=logits, labels=labels)
                 else:
                     topic_loss = torch.tensor(0.)
                 loss = lm_loss * (1 - self.args.w_question_loss - self.curr_w_topic_loss) + ask_question_loss * self.args.w_question_loss + topic_loss * self.curr_w_topic_loss
@@ -283,10 +323,11 @@ class Manager():
                 input_ids, token_type_ids, labels, ask_questions = batch
                 input_ids, token_type_ids, labels, ask_questions = \
                     input_ids.to(self.args.device), token_type_ids.to(self.args.device), labels.to(self.args.device), ask_questions.to(self.args.device)
-                topic_emb, outputs = self.model(
+                outputs, predicted_ask_question = self.model(
                     input_ids=input_ids,
                     token_type_ids = token_type_ids,
-                    labels = labels
+                    labels = labels,
+                    ask_questions=ask_questions
                 )
                 
                 _, logits = outputs[0], outputs[1]
@@ -295,11 +336,14 @@ class Manager():
                 criteria = nn.CrossEntropyLoss(ignore_index=self.args.pad_id)
                 lm_loss = criteria(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
                 if self.args.w_question_loss:
-                    ask_question_loss = self.compute_question_loss(logits=logits, ask_question_labels=ask_questions)
+                    # ask_question_loss = self.compute_question_loss(logits=logits, ask_question_labels=ask_questions)
+                    criteria_1 = nn.CrossEntropyLoss(weight=torch.FloatTensor([0.05, 0.4, 0.55]).to(self.args.device), ignore_index=self.args.pad_id)
+                    ask_question_loss = criteria_1(predicted_ask_question.float().to(self.args.device), ask_questions)
+
                 else:
                     ask_question_loss = torch.tensor(0.)
                 if self.curr_w_topic_loss:
-                    topic_loss = self.compute_topic_loss(pred_res_topic=topic_emb, labels=labels)
+                    topic_loss = self.compute_topic_loss(pred_res_topic=logits, labels=labels)
                 else:
                     topic_loss = torch.tensor(0.)
                 loss = lm_loss * (1 - self.args.w_question_loss - self.curr_w_topic_loss) + ask_question_loss * self.args.w_question_loss + topic_loss * self.curr_w_topic_loss
