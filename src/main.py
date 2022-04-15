@@ -24,7 +24,7 @@ class MainModel(nn.Module):
         self.gpt.resize_token_embeddings(self.args.vocab_size)
         self.fc_1 = nn.Linear(self.args.vocab_size, topic_feature_dim)
     def forward(self, input_ids, token_type_ids, labels):
-        gpt_outputs = self.gpt(input_ids, token_type_ids, labels)
+        gpt_outputs = self.gpt(input_ids=input_ids, token_type_ids=token_type_ids, labels=labels)
         _, logits = gpt_outputs[0], gpt_outputs[1]
         topic_embedding = self.fc_1(logits)
         return topic_embedding, gpt_outputs
@@ -69,10 +69,11 @@ class Manager():
         # Load model    
         print("Loading the model...")
         self.fix_seed(self.args.seed)
-        # self.model = GPT2LMHeadModel.from_pretrained(self.args.model_type).to(self.args.device)
-        # self.model.resize_token_embeddings(self.args.vocab_size)
+        #self.model = GPT2LMHeadModel.from_pretrained(self.args.model_type).to(self.args.device)
+        #self.model.resize_token_embeddings(self.args.vocab_size)
         self.model = MainModel(self.args, topic_feature_dim=20)
-        self.args.max_len = min(self.args.max_len, self.model.config.n_ctx)
+        #self.args.max_len = min(self.args.max_len, self.model.config.n_ctx)
+        self.args.max_len = min(self.args.max_len, self.model.gpt.config.n_ctx)
             
         if self.args.mode == 'train':            
             # Load optimizer
@@ -462,7 +463,7 @@ if __name__=='__main__':
     parser.add_argument('--ckpt_name', type=str, required=False, help="The name of the trained checkpoint. (without extension)")
     parser.add_argument('--ckpt_dir', type=str, default="saved_models", help="The directory name for saved checkpoints.")
     parser.add_argument('--exp_name', type=str, default="latest", required=False, help="The name of experiment name")
-    parser.add_argument('--topic_model', type=str, default='BERT', help="The type of topic model.")
+    parser.add_argument('--topic_model', type=str, default='LDA', help="The type of topic model.")
     parser.add_argument('--topic_model_ckpt_path', type=str, default='saved_models/topic_modelling/model_w_prob.bertopic', help="The path of the trained checkpoint of the topic model.")
     parser.add_argument('--end_command', type=str, default="Abort!", help="The command to stop the conversation when inferencing.")
               
