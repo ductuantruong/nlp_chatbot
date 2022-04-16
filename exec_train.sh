@@ -13,11 +13,11 @@ python src/main.py \
     --warmup_ratio=0.0 \
     --batch_size=24 \
     --num_workers=0 \
-    --num_epochs=1 \
+    --num_epochs=5 \
     --max_len=1024 \
     --max_turns=5 \
     --ckpt_dir="saved_models" \
-    --ckpt_name="saved_models/gpt2/all_loss_BERT_1_epoch/best_ckpt_epoch=20_valid_loss=1.7418.ckpt"\
-    --exp_name="all_loss_BERT_1_epoch" \
+    --ckpt_name="saved_models/gpt2/new_BERT_topic_loss/best_ckpt_epoch=19_valid_loss=2.3365.ckpt"\
+    --exp_name="new_LDA_topic_loss" \
     --w_question_loss=0.25 \
     --w_topic_loss=0.25 \

@@ -15,6 +15,21 @@ import argparse
 import copy
 import math
 import random
+def padding_tensor(sequences):
+    """
+    :param sequences: list of tensors
+    :return:
+    """
+    num = len(sequences)
+    out_dims = (num, 512*786)
+    out_tensor = sequences[0].data.new(*out_dims).fill_(0)
+    mask = sequences[0].data.new(*out_dims).fill_(0)
+    for i, tensor in enumerate(sequences):
+        length = tensor.size(0)
+        out_tensor[i, :length] = tensor
+        mask[i, :length] = 0
+    return out_tensor
+
 
 class MainModel(nn.Module):
     def __init__(self, args, topic_feature_dim):
@@ -22,11 +37,12 @@ class MainModel(nn.Module):
         self.args = args
         self.gpt = GPT2LMHeadModel.from_pretrained(self.args.model_type).to(self.args.device)    
         self.gpt.resize_token_embeddings(self.args.vocab_size)
-        self.fc_1 = nn.Linear(self.args.vocab_size, topic_feature_dim)
+        self.fc = nn.Linear(512*786, topic_feature_dim).to(self.args.device)
     def forward(self, input_ids, token_type_ids, labels):
-        gpt_outputs = self.gpt(input_ids=input_ids, token_type_ids=token_type_ids, labels=labels)
-        _, logits = gpt_outputs[0], gpt_outputs[1]
-        topic_embedding = self.fc_1(logits)
+        gpt_outputs = self.gpt(input_ids=input_ids, token_type_ids=token_type_ids, labels=labels, output_hidden_states=True, return_dict=True)
+        _, logits, hidden_state = gpt_outputs[0], gpt_outputs[1], gpt_outputs[3][0].reshape(self.args.batch_size, -1)
+        hidden_state = padding_tensor(hidden_state)
+        topic_embedding = self.fc(hidden_state).to(self.args.device)
         return topic_embedding, gpt_outputs
     
 class Manager():
@@ -71,7 +87,7 @@ class Manager():
         self.fix_seed(self.args.seed)
         #self.model = GPT2LMHeadModel.from_pretrained(self.args.model_type).to(self.args.device)
         #self.model.resize_token_embeddings(self.args.vocab_size)
-        self.model = MainModel(self.args, topic_feature_dim=20)
+        self.model = MainModel(self.args, topic_feature_dim=30)
         #self.args.max_len = min(self.args.max_len, self.model.config.n_ctx)
         self.args.max_len = min(self.args.max_len, self.model.gpt.config.n_ctx)
             
@@ -93,12 +109,14 @@ class Manager():
                                            shuffle=True, 
                                            batch_size=self.args.batch_size, 
                                            num_workers=self.args.num_workers, 
-                                           pin_memory=True)
+                                           pin_memory=True,
+                                           drop_last=True)
             self.valid_loader = DataLoader(valid_set, 
                                            collate_fn=ppd.pad_collate,
                                            batch_size=self.args.batch_size, 
                                            num_workers=self.args.num_workers, 
-                                           pin_memory=True)
+                                           pin_memory=True,
+                                           drop_last=True)
             
             if not os.path.exists(self.args.ckpt_dir):
                 os.makedirs(self.args.ckpt_dir)
@@ -122,6 +140,7 @@ class Manager():
             if os.path.exists(ckpt_path):
                 print("Loading the trained checkpoint...")
                 ckpt = torch.load(ckpt_path, map_location=self.args.device)
+                #self.model.gpt.load_state_dict(ckpt['model_state_dict'])
                 self.model.load_state_dict(ckpt['model_state_dict'])
                 
                 if self.args.mode == 'train':
@@ -424,7 +443,7 @@ class Manager():
             gt_res_topic = F.softmax(torch.from_numpy(gt_res_topic), dim=-1)
         elif self.args.topic_model == "BERT":
             _, gt_res_topic = self.topic_model.transform(gt_res)
-        pred_res_topic, gt_res_topic = torch.tensor(pred_res_topic, dtype=torch.float), torch.tensor(gt_res_topic, dtype=torch.float)
+        pred_res_topic, gt_res_topic = torch.tensor(pred_res_topic, dtype=torch.float).to(self.args.device), torch.tensor(gt_res_topic, dtype=torch.float).to(self.args.device)
         criteria = nn.KLDivLoss(reduction="batchmean", log_target=True)
         topic_loss = criteria(pred_res_topic, gt_res_topic)
         return topic_loss
@@ -455,7 +474,7 @@ if __name__=='__main__':
     parser.add_argument('--num_workers', type=int, default=0, help="The number of workers for data loading.")
     parser.add_argument('--num_epochs', type=int, default=10, help="The number of total epochs.")
     parser.add_argument('--train_topic_epochs', type=int, default=5, help="The number of epochs apdating topic loss.")
-    parser.add_argument('--max_len', type=int, default=1024, help="The maximum length of input sequence.")
+    parser.add_argument('--max_len', type=int, default=512, help="The maximum length of input sequence.")
     parser.add_argument('--max_turns', type=int, default=5, help="The maximum number of dialogue histories to include.")
     parser.add_argument('--top_p', type=float, default=0.9, help="The top-p value for nucleus sampling decoding.")
     parser.add_argument('--w_question_loss', type=float, default=0.25, help="The weight value of question loss.")
