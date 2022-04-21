@@ -15,8 +15,6 @@ import argparse
 import copy
 import math
 import random
-import time
-
 def padding_tensor(sequences):
     """
     :param sequences: list of tensors
@@ -32,6 +30,20 @@ def padding_tensor(sequences):
         mask[i, :length] = 0
     return out_tensor
 
+def padding_tensor(sequences):
+    """
+    :param sequences: list of tensors
+    :return:
+    """
+    num = len(sequences)
+    out_dims = (num, 512*786)
+    out_tensor = sequences[0].data.new(*out_dims).fill_(0)
+    mask = sequences[0].data.new(*out_dims).fill_(0)
+    for i, tensor in enumerate(sequences):
+        length = tensor.size(0)
+        out_tensor[i, :length] = tensor
+        mask[i, :length] = 0
+    return out_tensor
 
 class MainModel(nn.Module):
     def __init__(self, args, topic_feature_dim):
@@ -59,17 +71,17 @@ class Manager():
         # Tokenizer & Vocab
         print("Loading the tokenizer...")
         self.tokenizer = GPT2Tokenizer.from_pretrained(self.args.model_type)
-        # if self.args.w_topic_loss:
-        #     if self.args.topic_model == "LDA":
-        #         import gensim
-        #         print("Loading the LDA Topic Modelling model...")
-        #         self.topic_model = gensim.models.LdaModel.load('saved_models/topic_modelling/lda/mymodel')
-        #         self.id2word = self.topic_model.id2word
-        #     elif self.args.topic_model == "BERT":
-        #         from bertopic import BERTopic
-        #         print("Loading the BERT Topic Modelling model...")
-        #         self.topic_model = BERTopic.load('saved_models/topic_modelling/bert/model_w_prob.bertopic')
-        #         self.args.train_topic_epochs = 1
+        if self.args.w_topic_loss:
+            if self.args.topic_model == "LDA":
+                import gensim
+                print("Loading the LDA Topic Modelling model...")
+                self.topic_model = gensim.models.LdaModel.load('saved_models/topic_modelling/lda/mymodel')
+                self.id2word = self.topic_model.id2word
+            elif self.args.topic_model == "BERT":
+                from bertopic import BERTopic
+                print("Loading the BERT Topic Modelling model...")
+                self.topic_model = BERTopic.load('saved_models/topic_modelling/bert/model_w_prob.bertopic')
+                self.args.train_topic_epochs = 1
         special_tokens = {
             'bos_token': self.args.bos_token,
             'pad_token': self.args.pad_token,
