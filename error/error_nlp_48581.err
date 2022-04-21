@@ -1,18 +1,0 @@
-[nltk_data] Downloading package punkt to
-[nltk_data]     /home/MSAI/s210038/nltk_data...
-[nltk_data]   Package punkt is already up-to-date!
-[nltk_data] Downloading package averaged_perceptron_tagger to
-[nltk_data]     /home/MSAI/s210038/nltk_data...
-[nltk_data]   Package averaged_perceptron_tagger is already up-to-
-[nltk_data]       date!
-  0%|          | 0/2832 [00:00<?, ?it/s] 53%|█████▎    | 1492/2832 [00:00<00:00, 14917.77it/s]100%|██████████| 2832/2832 [00:00<00:00, 14456.20it/s]
-Traceback (most recent call last):
-  File "/home/MSAI/s210038/NLP/nlp_chatbot/src/val_num_question.py", line 180, in <module>
-    manager = Manager(args)
-  File "/home/MSAI/s210038/NLP/nlp_chatbot/src/val_num_question.py", line 71, in __init__
-    self.model.load_state_dict(ckpt['model_state_dict'])
-  File "/home/MSAI/s210038/.conda/envs/kietcdx/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1497, in load_state_dict
-    raise RuntimeError('Error(s) in loading state_dict for {}:\n\t{}'.format(
-RuntimeError: Error(s) in loading state_dict for GPT2LMHeadModel:
-	size mismatch for transformer.wte.weight: copying a param with shape torch.Size([50261, 768]) from checkpoint, the shape in current model is torch.Size([50260, 768]).
-	size mismatch for lm_head.weight: copying a param with shape torch.Size([50261, 768]) from checkpoint, the shape in current model is torch.Size([50260, 768]).

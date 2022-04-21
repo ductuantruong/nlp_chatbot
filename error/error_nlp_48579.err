@@ -1,18 +1,0 @@
-[nltk_data] Downloading package punkt to
-[nltk_data]     /home/MSAI/s210038/nltk_data...
-[nltk_data]   Package punkt is already up-to-date!
-[nltk_data] Downloading package averaged_perceptron_tagger to
-[nltk_data]     /home/MSAI/s210038/nltk_data...
-[nltk_data]   Package averaged_perceptron_tagger is already up-to-
-[nltk_data]       date!
-  0%|          | 0/2832 [00:00<?, ?it/s] 52%|█████▏    | 1459/2832 [00:00<00:00, 14581.36it/s]100%|██████████| 2832/2832 [00:00<00:00, 14518.31it/s]
-Traceback (most recent call last):
-  File "/home/MSAI/s210038/NLP/nlp_chatbot/src/val_num_question.py", line 180, in <module>
-    manager = Manager(args)
-  File "/home/MSAI/s210038/NLP/nlp_chatbot/src/val_num_question.py", line 70, in __init__
-    ckpt = torch.load(ckpt_path, map_location=self.args.device)
-  File "/home/MSAI/s210038/.conda/envs/kietcdx/lib/python3.9/site-packages/torch/serialization.py", line 705, in load
-    with _open_zipfile_reader(opened_file) as opened_zipfile:
-  File "/home/MSAI/s210038/.conda/envs/kietcdx/lib/python3.9/site-packages/torch/serialization.py", line 243, in __init__
-    super(_open_zipfile_reader, self).__init__(torch._C.PyTorchFileReader(name_or_buffer))
-RuntimeError: PytorchStreamReader failed reading zip archive: failed finding central directory

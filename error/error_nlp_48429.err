@@ -1,21 +1,0 @@
-[nltk_data] Downloading package punkt to
-[nltk_data]     /home/MSAI/s210038/nltk_data...
-[nltk_data]   Package punkt is already up-to-date!
-[nltk_data] Downloading package averaged_perceptron_tagger to
-[nltk_data]     /home/MSAI/s210038/nltk_data...
-[nltk_data]   Package averaged_perceptron_tagger is already up-to-
-[nltk_data]       date!
-  0%|          | 0/2832 [00:00<?, ?it/s] 48%|████▊     | 1357/2832 [00:00<00:00, 13429.61it/s] 95%|█████████▌| 2700/2832 [00:00<00:00, 13117.10it/s]100%|██████████| 2832/2832 [00:00<00:00, 13172.13it/s]
-  0%|          | 0/18394 [00:00<?, ?it/s]  0%|          | 0/18394 [00:00<?, ?it/s]
-Traceback (most recent call last):
-  File "/home/MSAI/s210038/NLP/nlp_chatbot/src/val_num_question.py", line 177, in <module>
-    manager.validation()
-  File "/home/MSAI/s210038/NLP/nlp_chatbot/src/val_num_question.py", line 97, in validation
-    label = self.tokenizer.decode(shift_labels.tolist(), skip_special_tokens=True)
-  File "/home/MSAI/s210038/.conda/envs/kietcdx/lib/python3.9/site-packages/transformers/tokenization_utils_base.py", line 3312, in decode
-    return self._decode(
-  File "/home/MSAI/s210038/.conda/envs/kietcdx/lib/python3.9/site-packages/transformers/tokenization_utils.py", line 929, in _decode
-    filtered_tokens = self.convert_ids_to_tokens(token_ids, skip_special_tokens=skip_special_tokens)
-  File "/home/MSAI/s210038/.conda/envs/kietcdx/lib/python3.9/site-packages/transformers/tokenization_utils.py", line 904, in convert_ids_to_tokens
-    index = int(index)
-TypeError: int() argument must be a string, a bytes-like object or a number, not 'list'

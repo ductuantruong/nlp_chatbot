@@ -6,7 +6,6 @@ from torch.nn import functional as F
 from torch.utils.tensorboard import SummaryWriter
 from itertools import chain
 import gensim
-from utils_num_question import *
 
 import torch
 import torch.nn as nn
@@ -16,7 +15,41 @@ import argparse
 import copy
 import math
 import random
+from utils.utils_bleau import *
+from utils.utils_distinc_n import *
+from utils.utils_f1 import *
+from utils.utils_num_question import *
 
+def padding_tensor(sequences):
+    """
+    :param sequences: list of tensors
+    :return:
+    """
+    num = len(sequences)
+    out_dims = (num, 512*786)
+    out_tensor = sequences[0].data.new(*out_dims).fill_(0)
+    mask = sequences[0].data.new(*out_dims).fill_(0)
+    for i, tensor in enumerate(sequences):
+        length = tensor.size(0)
+        out_tensor[i, :length] = tensor
+        mask[i, :length] = 0
+    return out_tensor
+
+
+class MainModel(nn.Module):
+    def __init__(self, args, topic_feature_dim):
+        super().__init__()
+        self.args = args
+        self.gpt = GPT2LMHeadModel.from_pretrained(self.args.model_type).to(self.args.device)    
+        self.gpt.resize_token_embeddings(self.args.vocab_size)
+        self.fc = nn.Linear(512*786, topic_feature_dim).to(self.args.device)
+
+    def forward(self, input_ids, token_type_ids, labels):
+        gpt_outputs = self.gpt(input_ids=input_ids, token_type_ids=token_type_ids, labels=labels, output_hidden_states=True, return_dict=True)
+        _, logits, hidden_state = gpt_outputs[0], gpt_outputs[1], gpt_outputs[3][0].reshape(self.args.batch_size, -1)
+        hidden_state = padding_tensor(hidden_state)
+        topic_embedding = self.fc(hidden_state).to(self.args.device)
+        return topic_embedding, gpt_outputs
 
 class Manager():
     def __init__(self, args):
@@ -30,10 +63,10 @@ class Manager():
         # Tokenizer & Vocab
         print("Loading the tokenizer...")
         self.tokenizer = GPT2Tokenizer.from_pretrained(self.args.model_type)
-        if self.args.w_topic_loss:
-            print("Loading the Topic Modelling model...")
-            self.topic_model = gensim.models.LdaModel.load(self.args.topic_model_ckpt_path)
-            self.id2word = self.topic_model.id2word
+        # if self.args.w_topic_loss:
+        #     print("Loading the Topic Modelling model...")
+        #     self.topic_model = gensim.models.LdaModel.load(self.args.topic_model_ckpt_path)
+        #     self.id2word = self.topic_model.id2word
         special_tokens = {
             'bos_token': self.args.bos_token,
             'pad_token': self.args.pad_token,
@@ -51,10 +84,12 @@ class Manager():
         # Load model    
         print("Loading the model...")
         self.fix_seed(self.args.seed)
-        self.model = GPT2LMHeadModel.from_pretrained(self.args.model_type).to(self.args.device)
-        self.model.resize_token_embeddings(self.args.vocab_size)
-        
-        self.args.max_len = min(self.args.max_len, self.model.config.n_ctx)
+        # self.model = GPT2LMHeadModel.from_pretrained(self.args.model_type).to(self.args.device)
+        # self.model.resize_token_embeddings(self.args.vocab_size)
+        self.model = MainModel(self.args, topic_feature_dim=30)
+        self.args.max_len = min(self.args.max_len, self.model.gpt.config.n_ctx)
+
+        # self.args.max_len = min(self.args.max_len, self.model.config.n_ctx)
             
         valid_set = CustomDataset(self.args.valid_prefix, self.args)
         ppd = PadCollate(eos_id=self.args.eos_id, pad_id=self.args.pad_id)
@@ -67,7 +102,7 @@ class Manager():
                                            pin_memory=True)
            
         if self.args.ckpt_name is not None:
-            ckpt_path = f"{self.args.ckpt_dir}/{self.args.ckpt_name}.ckpt"
+            ckpt_path = f"{self.args.ckpt_name}"
             if os.path.exists(ckpt_path):
                 print("Loading the trained checkpoint...")
                 ckpt = torch.load(ckpt_path, map_location=self.args.device)
@@ -86,36 +121,77 @@ class Manager():
         self.model.eval()
         num_ques_model = 0
         num_ques_valset = 0
+        f1 = 0
+        bleau_score_1 = 0
+        bleau_score_2 = 0
+        distinct_1 = 0
+        distinct_2 = 0
+        self.fix_seed(self.args.seed)
         with torch.no_grad():
+            input_hists = []
+
             for i, batch in enumerate(tqdm(self.valid_loader)):
                 input_ids, token_type_ids, labels, ask_questions = batch
                 input_ids, token_type_ids, labels, ask_questions =input_ids.to(self.args.device),token_type_ids.to(self.args.device),labels.to(self.args.device),ask_questions.to(self.args.device)
                 input_len = len(input_ids)
-
-                output_ids = self.nucleus_sampling(input_ids, token_type_ids, input_len)               
+                
+                input_sentence = self.tokenizer.decode(input_ids.view(-1), skip_special_tokens=True)
+                input_ids = [self.args.sp1_id] + self.tokenizer.encode(input_sentence)
+                input_hists.append(input_ids)
+                
+                if len(input_hists) >= self.args.max_turns:
+                    num_exceeded = len(input_hists) - self.args.max_turns + 1
+                    input_hists = input_hists[num_exceeded:]
+                    
+                input_ids = [self.args.bos_id] + list(chain.from_iterable(input_hists)) + [self.args.sp2_id]
+                start_sp_id = input_hists[0][0]
+                next_sp_id = self.args.sp1_id if start_sp_id == self.args.sp2_id else self.args.sp2_id
+                assert start_sp_id != next_sp_id
+                token_type_ids = [[start_sp_id] * len(hist) if h % 2 == 0 else [next_sp_id] * len(hist) for h, hist in enumerate(input_hists)]
+                assert len(token_type_ids) == len(input_hists)
+                token_type_ids = [start_sp_id] + list(chain.from_iterable(token_type_ids)) + [self.args.sp2_id]
+                assert len(input_ids) == len(token_type_ids)
+                input_len = len(input_ids)
+                
+                input_ids = torch.LongTensor(input_ids).unsqueeze(0).to(self.args.device)
+                token_type_ids = torch.LongTensor(token_type_ids).unsqueeze(0).to(self.args.device)
+                
+                output_ids = self.nucleus_sampling(input_ids, token_type_ids, input_len, labels)                
                 res = self.tokenizer.decode(output_ids, skip_special_tokens=True)
+                
                 shift_labels = labels[..., 1:].contiguous().view(-1)
                 shift_label = []
-                for i in shift_labels:
-                    if i > 0:
-                        shift_label.append(i)
+                for idx in shift_labels:
+                    if idx > 0:
+                        shift_label.append(idx)
                 label = self.tokenizer.decode(shift_label, skip_special_tokens=True)
+
                 if check_question(nltk.word_tokenize(res)):
-                    print(res)
                     num_ques_model += 1
                     
                 if check_question(nltk.word_tokenize(label)):
                     num_ques_valset += 1
+
+                f1 += prec_recall_f1_score(res,label)
+                bleau_score_1 +=  bleau_score(res,label)
+                bleau_score_2 += bleau_score(res,label,2)
+                distinct_1 += distinct_n_sentence_level(res,1)
+                distinct_2 += distinct_n_sentence_level(res,2)
                                
         print('Number of questiones in validate set: ' + str(num_ques_valset))
         print('Number of questiones from model: ' + str(num_ques_model))
+        print('F1: {:.5f}'.format(f1/(i+1)))
+        print('Bleau Score 1: {:.5f}'.format(bleau_score_1/(i+1)))
+        print('Bleau Score 2: {:.5f}'.format(bleau_score_2/(i+1)))
+        print('Distinct 1: {:.5f}'.format(distinct_1/(i+1)))
+        print('Distinct 2: {:.5f}'.format(distinct_2/(i+1)))
 
         return num_ques_model,num_ques_valset
     
-    def nucleus_sampling(self, input_ids, token_type_ids, input_len):
+    def nucleus_sampling(self, input_ids, token_type_ids, input_len, labels):
         output_ids = []
         for pos in range(input_len, self.args.max_len):
-            output = self.model(input_ids=input_ids, token_type_ids=token_type_ids)[0][:, pos-1]  # (1, V)
+            output = self.model.gpt(input_ids=input_ids, token_type_ids=token_type_ids)[0][:, pos-1]  # (1, V)
             output = F.softmax(output, dim=-1)  # (1, V)
             
             sorted_probs, sorted_idxs = torch.sort(output, descending=True)

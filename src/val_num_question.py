@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 from torch.nn import functional as F
 from torch.utils.tensorboard import SummaryWriter
 from itertools import chain
-from utils_num_question import *
+from utils.utils_num_question import *
 
 import torch
 import torch.nn as nn

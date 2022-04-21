@@ -1,15 +1,0 @@
-[nltk_data] Downloading package punkt to
-[nltk_data]     /home/MSAI/s210038/nltk_data...
-[nltk_data]   Package punkt is already up-to-date!
-[nltk_data] Downloading package averaged_perceptron_tagger to
-[nltk_data]     /home/MSAI/s210038/nltk_data...
-[nltk_data]   Package averaged_perceptron_tagger is already up-to-
-[nltk_data]       date!
-  0%|          | 0/2832 [00:00<?, ?it/s] 56%|█████▋    | 1595/2832 [00:00<00:00, 15943.44it/s]100%|██████████| 2832/2832 [00:00<00:00, 15399.56it/s]
-  0%|          | 0/18394 [00:00<?, ?it/s]  0%|          | 0/18394 [00:00<?, ?it/s]
-Traceback (most recent call last):
-  File "/home/MSAI/s210038/NLP/nlp_chatbot/src/val_num_question.py", line 174, in <module>
-    manager.validation()
-  File "/home/MSAI/s210038/NLP/nlp_chatbot/src/val_num_question.py", line 92, in validation
-    output_ids = self.nucleus_sampling(input_ids, token_type_ids, input_len)                
-NameError: name 'input_len' is not defined

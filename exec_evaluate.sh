@@ -1,6 +1,5 @@
-python src/main.py \
+python src/evaluate.py \
     --seed=0 \
-    --mode="infer" \
     --data_dir="data" \
     --model_type="gpt2" \
     --bos_token="<bos>" \
@@ -8,8 +7,6 @@ python src/main.py \
     --sp2_token="<sp2>" \
     --gpu="0" \
     --max_len=1024 \
-    --max_turns=5 \
     --top_p=0.8 \
     --ckpt_dir="saved_models" \
-    --ckpt_name="saved_models\gpt2\BERT_best_ckpt_epoch=19_valid_loss=1.7586.ckpt" \
-    --end_command="Abort!"
+    --ckpt_name="saved_models\gpt2\BERT_best_ckpt_epoch=19_valid_loss=1.7586.ckpt"\

@@ -1,8 +1,0 @@
-  0%|          | 0/2832 [00:00<?, ?it/s] 50%|█████     | 1427/2832 [00:00<00:00, 5903.48it/s]100%|█████████▉| 2823/2832 [00:00<00:00, 8895.98it/s]100%|██████████| 2832/2832 [00:00<00:00, 8268.02it/s]
-  0%|          | 0/18394 [00:00<?, ?it/s]  0%|          | 0/18394 [00:00<?, ?it/s]
-Traceback (most recent call last):
-  File "/home/MSAI/s210038/NLP/nlp_chatbot/src/val_num_question_new.py", line 187, in <module>
-    manager.validation()
-  File "/home/MSAI/s210038/NLP/nlp_chatbot/src/val_num_question_new.py", line 102, in validation
-    if check_question(nltk.word_tokenize(res)):
-NameError: name 'check_question' is not defined
