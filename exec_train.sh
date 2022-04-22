@@ -11,13 +11,13 @@ python src/main.py \
     --gpu="0" \
     --lr=1e-5 \
     --warmup_ratio=0.0 \
-    --batch_size=24 \
+    --batch_size=8 \
     --num_workers=0 \
-    --num_epochs=5 \
+    --num_epochs=20 \
     --max_len=1024 \
     --max_turns=5 \
+    --topic_model="LDA"\
     --ckpt_dir="saved_models" \
-    --ckpt_name="saved_models/gpt2/new_BERT_topic_loss/best_ckpt_epoch=19_valid_loss=2.3365.ckpt"\
-    --exp_name="new_LDA_topic_loss" \
+    --exp_name="latest_run" \
     --w_question_loss=0.25 \
     --w_topic_loss=0.25 \
